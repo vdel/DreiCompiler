@@ -1,0 +1,26 @@
+#!/bin/sh
+
+if test -f "$JAVAEXEC" 
+then
+  echo "using $JAVAEXEC"
+else
+  echo "using java as default"
+  echo "define JAVAEXEC to change"
+  JAVAEXEC=java
+fi
+
+link="$0";
+
+while test -h "$link"; do
+    path="`dirname $link`";
+    link="`ls -l \$link`";
+    link=`expr "$link" : ".*-> \(.*\)"`;
+    if expr "$link" : \\/ = 0 > /dev/null; then link="$path/$link"; fi;
+done;
+
+path="`dirname $link`";
+root="`cd $path/..; pwd`";
+home="$root";
+classpath="$home/lib/risc.jar";
+
+exec "$JAVAEXEC" -classpath "$classpath" risc.emulator.Main "$@"

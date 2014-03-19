@@ -1,0 +1,163 @@
+// Function classes
+
+class Int2Int {
+  def apply(x: Int): Int = this.apply(x);
+}
+
+class Int2Nothing {
+  def apply(x: Int) { do this.apply(x); }
+}
+
+class IntInt2Int {
+  def apply(x: Int, y: Int) : Int = this.apply(x, y);
+}
+
+
+class Carre extends Int2Int {
+  def apply(x: Int): Int = x*x;
+}
+
+class Bool extends Int2Int {
+  def apply(x: Int): Int = (x >= 9);
+}
+
+class Print extends Int2Nothing {
+  def apply(x:Int) { printInt (x); printChar(10); }
+}
+
+// List
+
+class List {
+  def isEmpty(): Int = this.isEmpty();
+  def head(): Int = this.head();
+  def tail(): List = this.tail();
+
+  def print() {
+    if(this.isEmpty()) printChar(10);
+    else {
+      printInt(this.head());
+      printChar(32);
+      do this.tail().print();
+    }
+  }
+
+  def append(x: Int): List = {
+    var xs: List = this;
+    if (this.isEmpty())
+      set xs = new Cons(x, this);
+    else
+      set xs = new Cons(this.head(), this.tail().append(x));
+    return xs
+  };
+
+  def length(): Int = {
+    var len: Int = 0;
+    var xs: List = this;
+    while (!xs.isEmpty()) {
+      set len = len + 1;
+      set xs = xs.tail();
+    }
+    return len
+  };
+
+  def map(f: Int2Int): List = {
+    var xs: List = this;
+    if (!this.isEmpty()) {
+      var head: Int = f.apply(this.head());
+    set xs = new Cons(head, this.tail().map(f));
+    }
+    return xs
+  };
+
+  def foreach(f: Int2Nothing) {
+    var xs: List = this;
+    while (!xs.isEmpty()) {
+      do f.apply(xs.head());
+      set xs = xs.tail();
+    }
+  }
+
+  def concat(that: List): List = {
+    var xs: List = that;
+    if (!this.isEmpty()) {
+      set xs = new Cons(this.head(), this.tail().concat(that));
+    }
+    return xs
+  };
+
+  def foldLeft(acc: Int, f: IntInt2Int): Int = {
+    var xs: List = this;
+    while (!xs.isEmpty()) {
+      set acc = f.apply(acc, xs.head());
+      set xs = xs.tail();
+    }
+    return acc
+  };
+
+  def reverse(): List = {
+    var xs: List = this;
+    var ys: List = new Nil();
+    while (!xs.isEmpty()) {
+      set ys = new Cons(xs.head(), ys);
+      set xs = xs.tail();
+    }
+    return ys
+  };
+
+  def filter(f: Int2Int): List = {
+    var xs: List = this;
+    if (!this.isEmpty()) {
+      var good: Int = f.apply(xs.head());
+      var ys: List = this.tail().filter(f);
+      if (good) { set xs = new Cons(xs.head(), ys); }
+      else { set xs = ys;}
+    }
+    return xs
+  };
+
+  def stringPrint() {
+    var xs: List = this;
+    while (!xs.isEmpty()) {
+      printChar(xs.head());
+      set xs = xs.tail();
+    }
+  }
+
+  def stringPrintLn() {
+    do this.stringPrint();
+    printChar(10);
+  }
+}
+
+// Cons
+
+class Cons extends List {
+  val head: Int;
+  val tail: List;
+  def isEmpty(): Int = false;
+  def head(): Int = this.head;
+  def tail(): List = this.tail;
+}
+
+// Nil
+
+class Nil extends List {
+  def isEmpty(): Int = true;
+}
+
+{
+  var l : List = new Nil();
+  var b : Int2Int = new Bool ();
+  var f : Int2Int = new Carre ();
+  var print: Int2Nothing = new Print ();
+  set l = l.append(3);
+  set l = l.append(7);
+set l = l.append(9);
+  set l = l.append(5);
+  do (l.print());	
+  set l = ((l.concat(l.map(f).reverse())).filter(b));
+  do l.foreach(print);
+
+  do (l.print());
+
+}

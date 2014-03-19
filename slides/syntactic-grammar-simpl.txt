@@ -1,0 +1,81 @@
+################################################################################
+                           SYNTACTICAL GRAMMAR
+################################################################################
+
+Program        = { ClassDecl } Statement <EOF>
+
+ClassDecl      = "class" ident [ "extends" ident ] "{" { Member } "}"
+
+Member         = FieldDecl
+               | MethodDef
+
+FieldDecl      = "val" Formal ";"
+
+MethodDef      = MethodHeader ":" Type "=" Expression ";"
+               | MethodHeader "{" Statements "}"
+
+MethodHeader   = "def" ident "(" [ Formal { "," Formal} ] ")"
+
+Formal         = ident ":" Type
+
+Type           = "Int"
+               | ident
+
+VarDecl        = "var" Formal "=" Expression ";"
+
+Statements     = { VarDecl | Statement }
+
+Statement      = "while" "(" Expression ")" Statement
+               | "if" "(" Expression ")" Statement [ "else" Statement ]
+               | "set" ident "=" Expression ";"
+               | "do" Expression ";"
+               | "printInt" "(" Expression ")" ";"
+               | "printChar" "(" Expression ")" ";"
+               | "{" Statements "}"
+
+Expression  = SumExpression [ CompOp SumExpression ] 
+
+CompOp         = "=="
+               | "!="
+               | "<"
+               | ">"
+               | "<="
+               | ">="
+
+SumExpression  = Term { SumOp Term }
+
+SumOp          = "+"
+               | "-"
+               | "||"
+
+SignedFactor   = [ NegateOp ] Factor
+
+Term           = SignedFactor { ProdOp SignedFactor }
+
+NegateOp       = "-"
+               | "!"
+
+ProdOp         = "*"
+               | "/"
+               | "%"
+               | "&&"
+
+SimpleFactor   = ident
+               | number
+               | string
+               | "true"
+               | "false"
+               | "this"
+               | "readInt"
+               | "readChar"
+               | "(" Expression ")"
+               | "{" Statements "return" Expression "}"
+               | "new" ident Arguments
+
+Factor         = SimpleFactor { "." ident [ Arguments ] }
+
+Arguments      = "(" Expressions ")"
+
+Expressions    = [ Expression { "," Expression } ]
+
+################################################################################

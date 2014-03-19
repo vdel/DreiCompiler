@@ -1,0 +1,4 @@
+{
+  printInt(42);
+  return 13
+}

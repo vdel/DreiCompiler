@@ -1,0 +1,8 @@
+{
+  do {
+    while ({return 0}) do ({ return ({ return ({ return 0})})});
+    return 1
+  };
+
+  do {do {return 0}; return {return 0}};
+}

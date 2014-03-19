@@ -1,0 +1,3 @@
+{
+  if (1) var a: Int = 0; else var b: Int = 1;
+}

@@ -1,0 +1,253 @@
+/* garbage collector, allocation dynamique de mémoire */
+
+/* ASSEMBLEUR, CHOSES SERIEUSES */
+class Gc 
+{
+  asm Give_Tas () : Int = {
+    @SYSCALL R29 0 13@
+    @ADDI R1 R29 0@
+  };
+
+  asm Print_Tas () {
+    @SYSCALL R29 0 13@
+    @SYSCALL R29 0 7@
+    @ADDI R28 0 10@
+    @SYSCALL R28 0 6@
+  }
+
+  asm rdm_b (x : Int) {
+    @LDW R29 R30 4@
+ /*   @SYSCALL R29 0 7@ */
+    @LDB R1 R29 0@
+    @ANDI R1 R1 0xff@
+  }
+
+  asm rdm_w (x : Int) {
+    @LDW R29 R30 4@
+ 
+ //   @SYSCALL R29 0 7@
+ /*   @ADDI R28 R0 10@
+   @SYSCALL R28 0 6@*/
+    @LDW R1 R29 0@
+   // @SYSCALL R1 0 7@
+//    @ANDI R1 R1 0xffffffff@
+  }
+
+  // Ecris _x_ à l'adresse _addr_
+  asm wrm_w (addr:Int, x:Int) {
+    /* x */
+    @LDW R29 R30 4@
+/*    @ASHI R29 R29 16@
+    @ASHI R29 R29 -16@*/
+    /* addr */
+    @LDW R28 R30 8@
+    @STW R29 R28 0@
+  }
+
+  // Shift droit : x << y
+  asm shiftr (x:Int, y:Int) {
+    @LDW R29 R30 8@
+    @LDW R28 R30 4@
+    @ASH R1 R29 R28@ 
+  }
+
+  // Shift gauche : x >> y
+  def shiftl (x:Int, y:Int) : Int = {
+    return (this.shiftr(x,-y))
+  };
+
+
+  // Début de la mémoire
+  val memory : Int;
+  val max_size : Int;
+
+  // Fonctions d'usage
+  def isFree (b : Int) : Int = {
+    var cont : Int = this.rdm_w(b);
+    return ((cont & 2) == 2) 
+  };
+
+  def isUsed (b : Int) : Int = {
+    return (!this.isFree(b))
+  };
+
+  def setFree (b : Int)  {
+    var cont : Int = this.rdm_w(b);
+    do (this.wrm_w(b, cont | 2));
+    /* set white */
+  }
+  
+  def setUsed (b : Int) {
+    var cont : Int = this.rdm_w(b);
+    do(this.wrm_w(b, cont & (~2)));
+  }
+
+  // taille (set met les flags à zéros)
+  def Size (b : Int) : Int = {
+    var cont : Int = this.rdm_w(b);
+    return (this.shiftr(this.shiftl(cont,2),2))
+  };
+  
+  def setSize (b : Int, size : Int) {
+    do(this.wrm_w(b, size));
+  }
+
+  /***  Gestion des blocs, malloc ***/
+
+  // bloc suivant un bloc : renvoie le prochain ou -1 si ca rate
+  def blk_next (p : Int) : Int = {
+    var b : Int =  p + (this.Size(p));
+    var res : Int = -1;
+    if (b < this.memory + this.max_size) 
+      set res = b;
+
+    return res
+  };
+
+  
+  /* On doit supprimer cette fonction car elle fait des new 
+  // Affiche l'état de la mémoire
+  def Dump () {
+    var p : Int = this.memory;
+    
+    while (p != -1) 
+    {
+      /* Affichage 
+      do "Bloc ".stringPrint();
+      printInt(p);
+      do " de taille ".stringPrint();
+      printInt(this.Size(p));
+      printChar(32);
+      if (this.isFree(p)) 
+        do "-> libre".stringPrintLn();
+      else
+        do "-> utilise".stringPrintLn();
+
+      set p = this.blk_next(p);
+    }
+  }*/
+
+  // recherche d'un bloc libre de taille supérieure ou égale à s
+  def search_freeblk (s : Int) : Int = {
+    var res : Int = -1; 
+    var p : Int = this.memory;
+    while ((p != -1) && (res == -1)) 
+    {
+      if (this.isFree(p) && (s <= this.Size(p)))
+        set res = p;
+      set p = this.blk_next(p);
+    }
+    
+    return res
+  };
+
+  def Free (b : Int) {
+    if ((b >= this.memory) && (b < (this.memory + this.max_size)))
+      if (this.isUsed(b))
+        do this.setFree(b);  
+  }
+
+/* Fusion des blocs libres */
+  def merge_free_blocks () { 
+    var p : Int = this.memory;
+    var q : Int = 0;
+    var ok : Int = 0;
+
+    while (p != -1) 
+    {
+      if (this.isFree(p))
+      {
+        /* Recherche de la plus grande suite de blocks libres */
+        while (ok != 1)
+        {
+          set q = this.blk_next(q);
+          /* Si on a atteint le bord du monde */
+          if (q == -1)
+            set ok = 1;
+          else if (this.isUsed(q))
+            set ok = 1;
+        }
+        set ok = 0;
+         
+        /* Fusionne ou fusionnera pas ? */
+        if (q != this.blk_next(p))
+        { 
+          /* Si on est arrivé au bout de la mémoire */ 
+          if (q == -1)
+            set q = this.memory + this.max_size;
+          /* FUSION !!! */
+          do this.setSize(p, q - p);
+          do this.setFree(p);
+        }
+      }      
+      set p = this.blk_next(p);
+    }
+  }
+
+  def Alloc (n : Int) : Int = { 
+    var t : Int = (n-(n%4))+4;
+    var p : Int = this.search_freeblk(t);
+    var prochain : Int = -1;
+    var t1: Int = this.Size(p);
+    var res : Int = p;
+
+    /* Si le bloc est libre et de taille suffisante, on l'alloue */
+    if ((p != -1) && (t1 > t))
+    {
+      /* On découpe */
+      do this.setSize(p, t);
+      do this.setUsed(p);
+
+      set prochain = this.blk_next(p);
+      do this.setSize(prochain, t1 - t);
+      do this.setFree(prochain);
+      set res = res + 4;
+    }
+    else if ((p != -1)) 
+    {
+      do this.setUsed(p);  
+      do this.setSize(p,t);
+      set res = res + 4;
+    }
+
+    return res
+  };
+
+  // Initialise le GC
+  asm Init (s : Int) {
+    /*@ADDI R29 R0 1000@
+     this.max_size
+    @LDW R28 R30 4 @
+    @LDW R29 R28 12 @ 
+    // allocation memoire via le gc (temporaire)   
+    @SYSCALL R29 R29 12@
+
+     @SYSCALL R29 0 7@
+    printChar(10);
+    @SYSCALL R29 R29 12@
+    @SYSCALL R29 0 7@
+    
+    // this.memory <- new_alloc
+    @LDW R28 R30 4@
+    @STW R29 R28 8@ */
+//    printChar(97);printChar(10);
+    do (this.setSize(this.memory, this.max_size));
+    do (this.setFree(this.memory));
+    do (this.Alloc(s));    
+  }
+
+}
+
+
+
+class Ad
+{
+}
+
+{
+  var p: Ad =  new Ad();
+  var s: Array Int = [1;3;45];
+  var d : Array Array Int = [s;s;s]; 
+  printInt (s#1+1);
+  
+}

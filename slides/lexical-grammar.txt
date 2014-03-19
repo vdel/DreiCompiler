@@ -1,0 +1,37 @@
+################################################################################
+                             LEXICAL GRAMMAR
+################################################################################
+
+input           = { inputelement }
+
+inputelement    = whitespace
+                | comment
+                | token
+
+token           = ident
+                | number
+                | string
+                | '('
+                | ')'
+                | ...         /* to complete */
+
+comment         = '/' '/' { cchar }
+
+ident           = letter { letter | digit | '_' }
+
+number          = '0'
+                | digit1 { digit }
+
+string          = '"' { schar } '"'
+
+whitespace      = ' ' | '\t' | '\f' | '\n'
+
+letter          = 'a' | ... | 'z' | 'A' | ... | 'Z'
+
+digit           = '0' | digit1
+digit1          = '1' | ... | '9'
+
+cchar           = all characters except for '\n'
+schar           = all characters except for '\n' and '"'
+
+################################################################################

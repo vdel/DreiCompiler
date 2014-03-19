@@ -1,0 +1,723 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Analyser" rel="Chapter" href="Analyser.html"><title>Analyser.find_var_in_current_scope</title>
+</head>
+<body>
+<code class="code"><span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;error_wrong_type&nbsp;t_attendu&nbsp;t_obtenu&nbsp;=<br>
+&nbsp;&nbsp;<span class="string">"Mauvaise&nbsp;correspondance&nbsp;de&nbsp;type:&nbsp;'"</span>^(<span class="constructor">Ast</span>.print_type&nbsp;t_attendu)^<span class="string">"'&nbsp;attendu,&nbsp;'"</span>^(<span class="constructor">Ast</span>.print_type&nbsp;t_obtenu)^<span class="string">"'&nbsp;obtenu."</span><br>
+<br>
+<br>
+<span class="keyword">and</span>&nbsp;analyse_program&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Program</span>(class_list,s))&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;gc&nbsp;=&nbsp;ref&nbsp;(<span class="constructor">List</span>.fold_left&nbsp;analyse_class&nbsp;[]&nbsp;class_list)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(analyse_classdef&nbsp;gc)&nbsp;class_list;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;analyse_statement&nbsp;!gc&nbsp;[[]]&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>&nbsp;s)&nbsp;<span class="keyword">in</span>&nbsp;()<br>
+<br>
+<span class="comment">(*&nbsp;Extrait&nbsp;les&nbsp;champs&nbsp;et&nbsp;méthodes&nbsp;d'une&nbsp;liste&nbsp;d_members&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_get_members&nbsp;d_members&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;sépare&nbsp;les&nbsp;fields&nbsp;des&nbsp;methods&nbsp;dans&nbsp;deux&nbsp;accumulateurs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;et&nbsp;on&nbsp;renvoie&nbsp;un&nbsp;couple&nbsp;de&nbsp;liste&nbsp;de&nbsp;ces&nbsp;champs&nbsp;et&nbsp;méthodes<br>
+&nbsp;&nbsp;&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;methods&nbsp;fields&nbsp;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(fields,&nbsp;methods)<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;a::q&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;a&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Mem_Field</span>(<span class="constructor">Ast</span>.<span class="constructor">FieldDecl</span>(pos,&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Formal</span>(_,&nbsp;f_name,&nbsp;f_type)))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Au&nbsp;passage&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;symbole&nbsp;avec&nbsp;le&nbsp;type&nbsp;attendu&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;methods&nbsp;(fields@[(f_name.name,&nbsp;{field_type&nbsp;=&nbsp;<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;f_type;&nbsp;field_offset=<span class="constructor">None</span>}&nbsp;)])&nbsp;q<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Mem_Method</span>(<span class="constructor">Ast</span>.<span class="constructor">Method_Def_Long</span>(pos,&nbsp;<span class="constructor">MethodHeader</span>(_,&nbsp;m_name,&nbsp;m_formals),&nbsp;m_type,&nbsp;m_expr))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;m_plist&nbsp;=&nbsp;<span class="constructor">List</span>.map&nbsp;(<span class="keyword">fun</span>&nbsp;(<span class="constructor">Formal</span>(_,&nbsp;_,&nbsp;f_type))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;f_type)&nbsp;m_formals<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Au&nbsp;passage&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;symbole&nbsp;avec&nbsp;les&nbsp;types&nbsp;des&nbsp;paramètres&nbsp;et&nbsp;de&nbsp;retour&nbsp;de&nbsp;la&nbsp;méthode&nbsp;attendus&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;(methods@[(get_name&nbsp;m_name,&nbsp;{&nbsp;params_type&nbsp;=&nbsp;m_plist&nbsp;;&nbsp;return_type&nbsp;=&nbsp;<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;m_type;&nbsp;method_label=<span class="constructor">None</span>})])&nbsp;fields&nbsp;q&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Mem_Method</span>(<span class="constructor">Ast</span>.<span class="constructor">Method_Def_Short</span>(pos,&nbsp;m_header,&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Statements</span>(_,&nbsp;m_stats)))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;m_header&nbsp;<span class="keyword">with</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">MethodHeader</span>(_,&nbsp;m_name,&nbsp;m_formals)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;m_plist&nbsp;=&nbsp;<span class="constructor">List</span>.map&nbsp;(<span class="keyword">fun</span>&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Formal</span>(_,&nbsp;_,&nbsp;f_type))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;f_type)&nbsp;m_formals<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Ici&nbsp;par&nbsp;défaut,&nbsp;le&nbsp;type&nbsp;d'une&nbsp;méthode&nbsp;à&nbsp;définition&nbsp;courte&nbsp;est&nbsp;TNone,&nbsp;c'est&nbsp;comme&nbsp;ça&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;(methods@[(get_name&nbsp;m_name,&nbsp;{&nbsp;params_type&nbsp;=&nbsp;m_plist&nbsp;;&nbsp;return_type&nbsp;=&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TNone</span>;&nbsp;method_label=<span class="constructor">None</span>})])&nbsp;fields&nbsp;q&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;[]&nbsp;[]&nbsp;d_members<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="comment">(*&nbsp;Effectue&nbsp;l'union&nbsp;disjointe&nbsp;de&nbsp;méthodes&nbsp;<br>
+&nbsp;*&nbsp;l1&nbsp;et&nbsp;l2&nbsp;sont&nbsp;des&nbsp;method_scope<br>
+&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_xunion_m&nbsp;l1&nbsp;l2&nbsp;l_stock&nbsp;=&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l1&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;l2<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(a,b)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span>&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;&nbsp;(<span class="constructor">List</span>.assoc&nbsp;a&nbsp;l2)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(<span class="constructor">List</span>.mem&nbsp;a&nbsp;l_stock)&nbsp;<span class="keyword">then</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;(<span class="string">"M\195\169thode&nbsp;\\'"</span>^(a)^<span class="string">"\\'&nbsp;d\195\169j\195\160&nbsp;d\195\169finie&nbsp;dans&nbsp;la&nbsp;classe&nbsp;courante."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_xunion_m&nbsp;q&nbsp;l2&nbsp;l_stock<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Not_found</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_xunion_m&nbsp;q&nbsp;((a,b)::l2)&nbsp;(a::l_stock)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]<br>
+<br>
+<span class="comment">(*&nbsp;Idem&nbsp;mais&nbsp;pour&nbsp;les&nbsp;champs.&nbsp;pourquoi&nbsp;Caml&nbsp;nous&nbsp;oblige-t-il&nbsp;à&nbsp;faire&nbsp;deux<br>
+&nbsp;&nbsp;&nbsp;fonctions&nbsp;identiques?&nbsp;Pour&nbsp;nous&nbsp;faire&nbsp;rager&nbsp;?<br>
+&nbsp;&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_xunion_f&nbsp;l1&nbsp;l2&nbsp;=&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l1&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;l2<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(a,b)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span>&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;(<span class="constructor">List</span>.assoc&nbsp;a&nbsp;l2)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;n'a&nbsp;pas&nbsp;le&nbsp;droit&nbsp;de&nbsp;redéfinir&nbsp;un&nbsp;field&nbsp;dans&nbsp;une&nbsp;sous-classe,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;néanmoins&nbsp;on&nbsp;dit&nbsp;qu'on&nbsp;ne&nbsp;garde&nbsp;que&nbsp;celui&nbsp;de&nbsp;la&nbsp;classe&nbsp;parente<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;et&nbsp;on&nbsp;tente&nbsp;de&nbsp;continuer<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error&nbsp;(<span class="string">"Champ&nbsp;\\'"</span>^(a)^<span class="string">"\\'&nbsp;d\195\169j\195\160&nbsp;d\195\169fini&nbsp;dans&nbsp;la&nbsp;classe&nbsp;parente&nbsp;ou&nbsp;courante."</span>)&nbsp;;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_xunion_f&nbsp;q&nbsp;l2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Not_found</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_xunion_f&nbsp;q&nbsp;((a,b)::l2)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]<br>
+<br>
+<span class="comment">(*&nbsp;Supprime&nbsp;l'élément&nbsp;t&nbsp;de&nbsp;la&nbsp;liste&nbsp;tq&nbsp;f(t)&nbsp;est&nbsp;vrai&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;list_supp_c&nbsp;f&nbsp;l=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;t::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">if</span>&nbsp;f&nbsp;t&nbsp;<span class="keyword">then</span>&nbsp;(list_supp_c&nbsp;f&nbsp;q)&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;t::(list_supp_c&nbsp;f&nbsp;q)<br>
+<span class="comment">(*&nbsp;la&nbsp;même,&nbsp;mais&nbsp;en&nbsp;différent&nbsp;(les&nbsp;conneries&nbsp;à&nbsp;Caml,&nbsp;normal&nbsp;quoi)&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;list_supp_m&nbsp;f&nbsp;l=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;t::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">if</span>&nbsp;f&nbsp;t&nbsp;<span class="keyword">then</span>&nbsp;(list_supp_m&nbsp;f&nbsp;q)&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;t::(list_supp_m&nbsp;f&nbsp;q)<br>
+<span class="comment">(*&nbsp;renvoit&nbsp;le&nbsp;type&nbsp;de&nbsp;var&nbsp;dans&nbsp;le&nbsp;contexte&nbsp;de&nbsp;variable&nbsp;amélioré&nbsp;(groupe&nbsp;bleu)&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;find_type_var&nbsp;var_scope&nbsp;var=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;var_scope&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;raise&nbsp;<span class="constructor">Not_found</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[t]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.assoc&nbsp;var&nbsp;t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;t::q&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.assoc&nbsp;var&nbsp;t<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;find_type_var&nbsp;q&nbsp;var<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="comment">(*&nbsp;si&nbsp;une&nbsp;var&nbsp;existe&nbsp;dans&nbsp;le&nbsp;bloc&nbsp;courant,&nbsp;renvoit&nbsp;le&nbsp;symbole&nbsp;associée,&nbsp;sinon,&nbsp;soulève&nbsp;Not_Found&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;find_var_in_current_scope&nbsp;var_scope&nbsp;var=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;var_scope&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;raise&nbsp;<span class="constructor">Not_found</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;t::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.assoc&nbsp;var&nbsp;t<br>
+<span class="comment">(*&nbsp;ajoute&nbsp;var&nbsp;au&nbsp;contexte&nbsp;de&nbsp;variable&nbsp;du&nbsp;bloc&nbsp;courant&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;add_var&nbsp;var_scope&nbsp;var=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;var_scope&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;<span class="string">"Contexte&nbsp;de&nbsp;variable&nbsp;vide,&nbsp;c'est&nbsp;pas&nbsp;normal,&nbsp;cf&nbsp;analyser.ml,&nbsp;ligne&nbsp;13"</span>;&nbsp;[[var]]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;t::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(var::t)::q<br>
+<span class="comment">(*&nbsp;crée&nbsp;un&nbsp;nouveau&nbsp;bloc&nbsp;dans&nbsp;le&nbsp;contexte&nbsp;de&nbsp;variable&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;add_block&nbsp;var_scope=&nbsp;[]::var_scope<br>
+<br>
+<br>
+<span class="comment">(*&nbsp;Analyse/insertion&nbsp;des&nbsp;classes&nbsp;*)</span><br>
+<br>
+<span class="comment">(*&nbsp;Retourne&nbsp;true&nbsp;si&nbsp;la&nbsp;classe&nbsp;c_id&nbsp;a&nbsp;été&nbsp;insérée<br>
+&nbsp;&nbsp;&nbsp;dans&nbsp;le&nbsp;c_scope&nbsp;<br>
+&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_exist_class&nbsp;c_scope&nbsp;c_id&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">try</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;c_id&nbsp;c_scope&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">true</span><br>
+&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Not_found</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">false</span><br>
+&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">true</span><br>
+<br>
+<br>
+<span class="comment">(*&nbsp;Ajoute&nbsp;une&nbsp;classe&nbsp;à&nbsp;un&nbsp;c_scope&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_addclass&nbsp;c_scope&nbsp;c_id&nbsp;c_parents&nbsp;c_f_scope&nbsp;c_m_scope&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;symb&nbsp;=&nbsp;{&nbsp;parents&nbsp;=&nbsp;c_parents;&nbsp;fields&nbsp;=&nbsp;c_f_scope;&nbsp;methods&nbsp;=&nbsp;c_m_scope;&nbsp;class_label=<span class="constructor">None</span>}&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;c_id&nbsp;(<span class="constructor">C</span>&nbsp;symb);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">Ast</span>.get_name&nbsp;c_id,&nbsp;symb)::c_scope<br>
+<br>
+<span class="comment">(*&nbsp;Effectue&nbsp;l'insertion&nbsp;de&nbsp;classe&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_class&nbsp;c_scope&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">ClassDecl</span>(d_pos,&nbsp;d_id,&nbsp;d_ext_name,&nbsp;d_members))&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;f_scope2&nbsp;=&nbsp;ref&nbsp;[]&nbsp;<span class="keyword">and</span>&nbsp;m_scope2&nbsp;=&nbsp;ref&nbsp;[]&nbsp;<span class="keyword">and</span>&nbsp;parents&nbsp;=&nbsp;ref&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(analyse_exist_class&nbsp;c_scope&nbsp;(get_name&nbsp;d_id))&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;d_pos&nbsp;(<span class="string">"Classe&nbsp;\\'"</span>^(get_name&nbsp;d_id)^<span class="string">"\\'&nbsp;d\195\169j\195\160&nbsp;inser\195\169e."</span>)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;c_scope)<br>
+&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;d_ext_name&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Ici&nbsp;on&nbsp;regarde&nbsp;si&nbsp;on&nbsp;est&nbsp;dans&nbsp;le&nbsp;cas&nbsp;d'une&nbsp;classe&nbsp;héritant&nbsp;d'une&nbsp;autre&nbsp;ou&nbsp;pas&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;parents&nbsp;:=&nbsp;[get_name&nbsp;d_id]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>(d_ext_id)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;c&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;(get_name&nbsp;d_ext_id)&nbsp;c_scope&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;d_ext_id&nbsp;(<span class="constructor">C</span>&nbsp;c);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;parents&nbsp;&nbsp;:=&nbsp;(get_name&nbsp;d_id)::c.parents;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;f_scope2&nbsp;:=&nbsp;c.fields;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;m_scope2&nbsp;:=&nbsp;c.methods<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Not_found</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;d_pos&nbsp;(<span class="string">"Classe&nbsp;\\'"</span>^(<span class="constructor">Ast</span>.get_name&nbsp;d_ext_id)^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>);&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Union&nbsp;exclusive&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;(f_scope_tmp,&nbsp;m_scope_tmp)&nbsp;=&nbsp;analyse_get_members&nbsp;d_members<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;f_scope2&nbsp;:=&nbsp;analyse_xunion_f&nbsp;f_scope_tmp&nbsp;(!f_scope2);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;m_scope2&nbsp;:=&nbsp;analyse_xunion_m&nbsp;m_scope_tmp&nbsp;(!m_scope2)&nbsp;[];<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_addclass&nbsp;c_scope&nbsp;d_id&nbsp;!parents&nbsp;!f_scope2&nbsp;!m_scope2<br>
+&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;<br>
+<br>
+<span class="comment">(*&nbsp;Analyse&nbsp;la&nbsp;définition&nbsp;d'une&nbsp;classe&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_classdef&nbsp;c_scope_ref&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">ClassDecl</span>(d_pos,&nbsp;d_name,&nbsp;_,&nbsp;d_members))&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(<span class="constructor">Mem_Field</span>(<span class="constructor">FieldDecl</span>(f_pos,&nbsp;<span class="constructor">Formal</span>(_,&nbsp;f_id,&nbsp;_)))&nbsp;<span class="keyword">as</span>&nbsp;d_member)::q&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_member&nbsp;(get_name&nbsp;d_name)&nbsp;c_scope_ref&nbsp;f_id&nbsp;d_member;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(<span class="constructor">Mem_Method</span>(<span class="constructor">Method_Def_Long</span>(_,&nbsp;(<span class="constructor">MethodHeader</span>(_,&nbsp;m_id,&nbsp;_)),_&nbsp;,_))&nbsp;<span class="keyword">as</span>&nbsp;d_member)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_member&nbsp;(get_name&nbsp;d_name)&nbsp;c_scope_ref&nbsp;m_id&nbsp;d_member;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(<span class="constructor">Mem_Method</span>(<span class="constructor">Method_Def_Short</span>(_,(<span class="constructor">MethodHeader</span>(_,&nbsp;m_id,&nbsp;_)),_))&nbsp;<span class="keyword">as</span>&nbsp;d_member)::q&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_member&nbsp;(get_name&nbsp;d_name)&nbsp;c_scope_ref&nbsp;m_id&nbsp;d_member;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(analyse_exist_class&nbsp;(!c_scope_ref)&nbsp;(get_name&nbsp;d_name))<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;d_members<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="comment">(*&nbsp;Analyse&nbsp;des&nbsp;membres&nbsp;d'une&nbsp;classe&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_member&nbsp;c&nbsp;c_scope_ref&nbsp;m_id&nbsp;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Mem_Field</span>(m_field)&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_field&nbsp;c_scope_ref&nbsp;m_id&nbsp;m_field<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Mem_Method</span>(m_method)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_method&nbsp;c&nbsp;c_scope_ref&nbsp;m_id&nbsp;m_method<br>
+<br>
+<span class="comment">(*&nbsp;Analyse&nbsp;d'un&nbsp;champ&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_field&nbsp;c_scope_ref&nbsp;f_id&nbsp;(<span class="constructor">FieldDecl</span>(f_pos,&nbsp;<span class="constructor">Formal</span>(_,&nbsp;_,&nbsp;f_type)))&nbsp;=<br>
+&nbsp;&nbsp;analyse_type&nbsp;f_pos&nbsp;!c_scope_ref&nbsp;(<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;f_type);<br>
+&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;f_id&nbsp;(<span class="constructor">F</span>({&nbsp;field_type&nbsp;=&nbsp;(<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;f_type);&nbsp;field_offset=<span class="constructor">None</span>&nbsp;}))<br>
+<br>
+<span class="comment">(*&nbsp;Retourne&nbsp;le&nbsp;type&nbsp;du&nbsp;Formal&nbsp;:&nbsp;AFAIRE&nbsp;TBAD&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_formal&nbsp;c_scope&nbsp;(<span class="constructor">Formal</span>(pos,&nbsp;f_name,&nbsp;f_type))&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;analyse_type&nbsp;pos&nbsp;c_scope&nbsp;(dtype_of_ttype&nbsp;f_type);<br>
+&nbsp;&nbsp;<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;f_type<br>
+<br>
+<span class="comment">(*&nbsp;Retourne&nbsp;true&nbsp;si&nbsp;t1&nbsp;est&nbsp;un&nbsp;sous-type&nbsp;de&nbsp;t2&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_is_subtype&nbsp;c_scope&nbsp;t1&nbsp;t2&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;t1&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TInt</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;t2&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">true</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">false</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TNone</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;t2&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TNone</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">true</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">false</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TClass</span>(id)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;symbol&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;id&nbsp;c_scope&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;t2&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TClass</span>(id)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.mem&nbsp;id&nbsp;symbol.parents<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TBad</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">true</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">false</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Not_found</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;(-1,-1)&nbsp;(<span class="string">"Classe&nbsp;"</span>^id^<span class="string">"&nbsp;inexistante"</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">false</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">false</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TBad</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">true</span><br>
+<br>
+<span class="comment">(*&nbsp;Analyse&nbsp;une&nbsp;méthode&nbsp;||&nbsp;MODIFIEE&nbsp;LE&nbsp;5&nbsp;JANVIER&nbsp;*)</span><br>
+<span class="comment">(*&nbsp;Dans&nbsp;cette&nbsp;fonction,&nbsp;_c_&nbsp;est&nbsp;la&nbsp;classe&nbsp;courante&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_method&nbsp;c_name&nbsp;c_scope_ref&nbsp;m_id&nbsp;m_def&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;c_scope&nbsp;=&nbsp;!c_scope_ref&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Cette&nbsp;fonction&nbsp;récupère&nbsp;la&nbsp;liste&nbsp;de&nbsp;type&nbsp;des&nbsp;paramètres<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;d'une&nbsp;méthode&nbsp;*)</span><br>
+<span class="keyword">try</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;c&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;c_name&nbsp;c_scope&nbsp;<span class="keyword">in</span><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Cette&nbsp;fonction&nbsp;récupère&nbsp;une&nbsp;liste&nbsp;de&nbsp;type<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;à&nbsp;partir&nbsp;d'une&nbsp;liste&nbsp;de&nbsp;formals<br>
+&nbsp;&nbsp;&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;list_formals_type&nbsp;m_formals&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;a::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(analyse_formal&nbsp;c_scope&nbsp;a)::(aux&nbsp;q)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;m_formals<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;vérifie&nbsp;le&nbsp;sous-typage&nbsp;correct&nbsp;dans&nbsp;les&nbsp;classes&nbsp;parentes&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux1&nbsp;pos&nbsp;ptype&nbsp;type_ret&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;a::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;récupère&nbsp;la&nbsp;méthode&nbsp;de&nbsp;la&nbsp;classe&nbsp;parente,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;si&nbsp;elle&nbsp;existe&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;mp&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;(get_name&nbsp;m_id)&nbsp;(<span class="constructor">List</span>.assoc&nbsp;a&nbsp;c_scope).methods&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;A&nbsp;priori,&nbsp;on&nbsp;a&nbsp;déjà&nbsp;typé&nbsp;la&nbsp;classe&nbsp;parente&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;vérifie&nbsp;que&nbsp;les&nbsp;relations&nbsp;de&nbsp;sous-typage&nbsp;sont&nbsp;bien&nbsp;respectées&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;not(<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(analyse_is_subtype&nbsp;c_scope&nbsp;type_ret&nbsp;mp.return_type)&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">List</span>.fold_left2&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="keyword">fun</span>&nbsp;a&nbsp;b&nbsp;c&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(a&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;(analyse_is_subtype&nbsp;c_scope&nbsp;b&nbsp;c)))<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">true</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;mp.params_type<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ptype))&nbsp;<span class="keyword">then</span>&nbsp;(<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Les&nbsp;param\195\168tres&nbsp;de&nbsp;'"</span>^(get_name&nbsp;m_id)^<span class="string">"'&nbsp;n'ont&nbsp;pas&nbsp;le&nbsp;m\195\170me&nbsp;type&nbsp;que&nbsp;dans&nbsp;la&nbsp;classe&nbsp;parente&nbsp;'"</span>^a^<span class="string">"'"</span>))&nbsp;<span class="comment">(*&nbsp;erreur&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;()&nbsp;<span class="comment">(*&nbsp;pas&nbsp;erreur&nbsp;*)</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()&nbsp;<span class="comment">(*&nbsp;La&nbsp;méthode&nbsp;n'est&nbsp;pas&nbsp;héritée&nbsp;d'une&nbsp;classe&nbsp;parente&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux1&nbsp;pos&nbsp;ptype&nbsp;type_ret&nbsp;q<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;crée&nbsp;un&nbsp;var_scope&nbsp;à&nbsp;partir&nbsp;des&nbsp;arguments&nbsp;de&nbsp;la&nbsp;méthode&nbsp;*)</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux2&nbsp;formals_list&nbsp;types_list&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;formals_list,types_list&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Formal</span>(_,&nbsp;name,&nbsp;_))::q1,&nbsp;dtype::q2&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;symbole&nbsp;=&nbsp;{&nbsp;var_type&nbsp;=&nbsp;dtype;&nbsp;var_offset&nbsp;=&nbsp;<span class="constructor">None</span>}&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;set_symbol&nbsp;name&nbsp;(<span class="constructor">V</span>(symbole));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(get_name&nbsp;name,&nbsp;symbole)::(aux2&nbsp;q1&nbsp;q2)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;[]<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*aux3&nbsp;vérifie&nbsp;les&nbsp;relations&nbsp;de&nbsp;sous-typages&nbsp;entre&nbsp;classes&nbsp;parentes&nbsp;et&nbsp;calcule&nbsp;le&nbsp;var_scope&nbsp;nécessaire&nbsp;à&nbsp;l'évaluation&nbsp;du&nbsp;corps&nbsp;de&nbsp;la&nbsp;méthode*)</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;aux3&nbsp;(<span class="constructor">MethodHeader</span>(pos,&nbsp;m_name,&nbsp;m_formals))&nbsp;m_dtype&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Type&nbsp;de&nbsp;retour&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;analyse_type&nbsp;pos&nbsp;c_scope&nbsp;m_dtype;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ptype&nbsp;=&nbsp;list_formals_type&nbsp;m_formals&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux1&nbsp;pos&nbsp;ptype&nbsp;m_dtype&nbsp;c.parents;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;symbole&nbsp;de&nbsp;la&nbsp;méthode&nbsp;pour&nbsp;que&nbsp;les&nbsp;types&nbsp;soient&nbsp;bien&nbsp;actualisés&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;symbole&nbsp;=&nbsp;{params_type&nbsp;=&nbsp;ptype;&nbsp;return_type&nbsp;=&nbsp;m_dtype;&nbsp;method_label&nbsp;=&nbsp;<span class="constructor">None</span>}&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;m_name.symbol&nbsp;&nbsp;&lt;-&nbsp;Some&nbsp;(M({params_type&nbsp;=&nbsp;ptype;&nbsp;return_type&nbsp;=&nbsp;m_dtype;&nbsp;method_label&nbsp;=&nbsp;Some(")}));*)</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;new_methods_list&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(get_name&nbsp;m_id,&nbsp;symbole)::&nbsp;(list_supp_m&nbsp;(<span class="keyword">fun</span>&nbsp;(string_name,_)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string_name=(get_name&nbsp;m_id))&nbsp;c.methods)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;class_scope&nbsp;avec&nbsp;le&nbsp;nv&nbsp;class_symbol*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;c_scope_ref&nbsp;:=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(c_name,&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{parents&nbsp;=&nbsp;c.parents;&nbsp;fields&nbsp;=&nbsp;c.fields;&nbsp;methods&nbsp;=&nbsp;new_methods_list;&nbsp;class_label=<span class="constructor">None</span>})<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;::(list_supp_c&nbsp;(<span class="keyword">fun</span>&nbsp;(string_name,_)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;string_name&nbsp;=&nbsp;c_name)&nbsp;c_scope);&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Le&nbsp;nouveau&nbsp;var_scope&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[(<span class="string">"this"</span>,&nbsp;{&nbsp;var_type&nbsp;=&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">TClass</span>&nbsp;c_name);&nbsp;var_offset=<span class="constructor">Some</span>(0)})::(aux2&nbsp;m_formals&nbsp;ptype)]<br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;m_def&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Method_Def_Long</span>(pos,&nbsp;m_header,&nbsp;m_type,&nbsp;m_expr)&nbsp;&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_obtenu&nbsp;=&nbsp;analyse_expression&nbsp;!c_scope_ref&nbsp;(aux3&nbsp;m_header&nbsp;(<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;m_type))&nbsp;m_expr<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;<span class="keyword">if</span>&nbsp;(not(analyse_is_subtype&nbsp;!c_scope_ref&nbsp;type_obtenu&nbsp;(<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;m_type)))&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">then</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;(<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;m_type)&nbsp;type_obtenu)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;()&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Method_Def_Short</span>(_,&nbsp;m_header,&nbsp;<span class="constructor">Statements</span>(_,stats_l))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;<span class="constructor">List</span>.fold_left&nbsp;(analyse_statement&nbsp;!c_scope_ref)&nbsp;(aux3&nbsp;m_header&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TNone</span>)&nbsp;stats_l&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="keyword">with</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Not_found</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;(-1,-1)&nbsp;(<span class="string">"Classe&nbsp;\\'"</span>^c_name^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>)<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+<br>
+<span class="comment">(*&nbsp;Analyse&nbsp;le&nbsp;type&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_type&nbsp;pos&nbsp;c_scope&nbsp;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TClass</span>(c_id)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">if</span>&nbsp;not(analyse_exist_class&nbsp;c_scope&nbsp;c_id)&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Classe&nbsp;\\'"</span>^c_id^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;()<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TNone</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+<br>
+<br>
+<span class="comment">(*&nbsp;analyse&nbsp;une&nbsp;expression&nbsp;dans&nbsp;le&nbsp;contexte&nbsp;de&nbsp;classe&nbsp;gc&nbsp;et&nbsp;le&nbsp;contexte&nbsp;de&nbsp;variables&nbsp;gv&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_expression&nbsp;gc&nbsp;(gv:<span class="constructor">Ast</span>.var_scope)&nbsp;t&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;t&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;c'est&nbsp;une&nbsp;sumexpression&nbsp;sans&nbsp;opérateur&nbsp;de&nbsp;comparaison,&nbsp;on&nbsp;passe&nbsp;la&nbsp;main&nbsp;à&nbsp;sumexpression&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Expression</span>(_,se,<span class="constructor">None</span>)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_sumexpression&nbsp;gc&nbsp;gv&nbsp;se&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;s'il,&nbsp;y&nbsp;a&nbsp;un&nbsp;opérateur&nbsp;de&nbsp;comparaison,&nbsp;on&nbsp;analyse&nbsp;les&nbsp;membres&nbsp;de&nbsp;part&nbsp;et&nbsp;d'autre...*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Expression</span>(pos,se1,<span class="constructor">Some</span>(op,se2))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;t1&nbsp;=&nbsp;analyse_sumexpression&nbsp;gc&nbsp;gv&nbsp;se1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">and</span>&nbsp;t2&nbsp;=&nbsp;analyse_sumexpression&nbsp;gc&nbsp;gv&nbsp;se2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;...&nbsp;puis&nbsp;on&nbsp;vérifie&nbsp;leur&nbsp;type&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;op&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">CO_EQ</span>(pos)&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">CO_NE</span>(pos)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;pour&nbsp;==&nbsp;et&nbsp;!=,&nbsp;il&nbsp;faut&nbsp;que&nbsp;chacun&nbsp;soit&nbsp;sous-type&nbsp;de&nbsp;l'autre&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;analyse_is_subtype&nbsp;gc&nbsp;t1&nbsp;t2&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;analyse_is_subtype&nbsp;gc&nbsp;t2&nbsp;t1&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;t1&nbsp;&nbsp;<span class="comment">(*&nbsp;les&nbsp;deux&nbsp;types&nbsp;sont&nbsp;égaux&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;<span class="string">"Impossible&nbsp;de&nbsp;comparer&nbsp;les&nbsp;deux&nbsp;op\195\169randes"</span>;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;puis&nbsp;on&nbsp;renvoit&nbsp;TBad&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;pour&nbsp;les&nbsp;autres&nbsp;comparateurs,&nbsp;t1&nbsp;et&nbsp;t2&nbsp;doivent&nbsp;être&nbsp;TInt&nbsp;et&nbsp;on&nbsp;renvoit&nbsp;TInt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;t1&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;t1&lt;&gt;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SumExpression</span>(pos,_,_)=&nbsp;se1&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;t1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;t2&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;t2&lt;&gt;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SumExpression</span>(pos,_,_)=&nbsp;se2&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;t2)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="comment">(*&nbsp;pour&nbsp;analyser&nbsp;le&nbsp;type&nbsp;des&nbsp;sumexpressions&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_sumexpression&nbsp;gc&nbsp;gv&nbsp;se&nbsp;=<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;une&nbsp;fonction&nbsp;auxiliaire&nbsp;qui&nbsp;vérifie&nbsp;que&nbsp;tous&nbsp;les&nbsp;Terms&nbsp;de&nbsp;la&nbsp;somme&nbsp;sont&nbsp;de&nbsp;type&nbsp;TInt&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;l&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(_,t)::q&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_term&nbsp;=&nbsp;analyse_term&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;type_term&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Term</span>(pos,_,_)&nbsp;=&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;type_term)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;se&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;soit&nbsp;on&nbsp;a&nbsp;qu'un&nbsp;seul&nbsp;term:&nbsp;pas&nbsp;besoin&nbsp;de&nbsp;aux&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SumExpression</span>(_,t,[])&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_term&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;soit&nbsp;on&nbsp;en&nbsp;a&nbsp;plusieurs:&nbsp;on&nbsp;appelle&nbsp;aux&nbsp;et&nbsp;on&nbsp;renvoit&nbsp;TInt&nbsp;parce&nbsp;que&nbsp;on&nbsp;fait&nbsp;une&nbsp;somme*)</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SumExpression</span>(_,t,l)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_term&nbsp;=&nbsp;analyse_term&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;type_term&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Term</span>(pos,_,_)&nbsp;=&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;type_term)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;l;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="comment">(*&nbsp;Analyse&nbsp;du&nbsp;type&nbsp;d'un&nbsp;term:&nbsp;idem&nbsp;que&nbsp;ci-dessus&nbsp;avec&nbsp;aux,&nbsp;etc&nbsp;...&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_term&nbsp;gc&nbsp;gv&nbsp;t&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;l&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(_,sf)::q&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_sfactor&nbsp;=&nbsp;analyse_signedfactor&nbsp;gc&nbsp;gv&nbsp;sf&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;type_sfactor&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SignedFactor</span>(pos,_,_)&nbsp;=&nbsp;sf&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;type_sfactor)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;t&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Term</span>(_,sf,[])&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_signedfactor&nbsp;gc&nbsp;gv&nbsp;sf<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Term</span>(_,sf,l)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_sfactor&nbsp;=&nbsp;analyse_signedfactor&nbsp;gc&nbsp;gv&nbsp;sf&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;type_sfactor&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SignedFactor</span>(pos,_,_)&nbsp;=&nbsp;sf&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;type_sfactor)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;l;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="comment">(*&nbsp;Analyse&nbsp;du&nbsp;type&nbsp;d'un&nbsp;signedfactor&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_signedfactor&nbsp;gc&nbsp;gv&nbsp;sf&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;sf&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;s'il&nbsp;n'y&nbsp;a&nbsp;pas&nbsp;d'opérateur&nbsp;de&nbsp;négation:&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SignedFactor</span>(_,<span class="constructor">None</span>,f)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_factor&nbsp;gc&nbsp;gv&nbsp;f<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;s'il&nbsp;y&nbsp;en&nbsp;a&nbsp;un,&nbsp;on&nbsp;sait&nbsp;qu'on&nbsp;renvoit&nbsp;du&nbsp;TInt&nbsp;quoi&nbsp;qu'il&nbsp;arrive&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">SignedFactor</span>(_,<span class="constructor">Some</span>&nbsp;op,f)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_factor&nbsp;=&nbsp;analyse_factor&nbsp;gc&nbsp;gv&nbsp;f&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;type_factor&nbsp;&lt;&gt;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Factor</span>(pos,_,_)&nbsp;=&nbsp;f&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;type_factor)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="keyword">and</span>&nbsp;analyse_factor&nbsp;gc&nbsp;gv&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Factor</span>(pos,sf,l))&nbsp;=<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;une&nbsp;&nbsp;première&nbsp;fonction&nbsp;auxiliaire&nbsp;qui&nbsp;vérifie&nbsp;que&nbsp;,&nbsp;lors&nbsp;d'un&nbsp;appel&nbsp;de&nbsp;méthode,&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;les&nbsp;expressions&nbsp;passées&nbsp;en&nbsp;argument&nbsp;sont&nbsp;bien&nbsp;du&nbsp;type&nbsp;attendu:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;type_list&nbsp;est&nbsp;la&nbsp;list&nbsp;des&nbsp;types&nbsp;attendus&nbsp;pour&nbsp;chaque&nbsp;argument,&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;et&nbsp;expr_list,&nbsp;la&nbsp;liste&nbsp;des&nbsp;expressions&nbsp;passées&nbsp;en&nbsp;argument&nbsp;*)</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;verif_args&nbsp;type_list&nbsp;expr_list&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;type_list,expr_list&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(t1::tl,e1::el)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_expr&nbsp;=&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;e1&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;type_expr&lt;&gt;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;type_expr&lt;&gt;t1&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Expression</span>(pos_e,_,_)&nbsp;=&nbsp;e1&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos_e&nbsp;(error_wrong_type&nbsp;t1&nbsp;type_expr)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;verif_args&nbsp;tl&nbsp;el&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;ce&nbsp;cas&nbsp;n'arrive&nbsp;jamais,&nbsp;on&nbsp;vérifie&nbsp;avant&nbsp;que&nbsp;les&nbsp;deux&nbsp;listes&nbsp;ont&nbsp;la&nbsp;même&nbsp;taille&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;une&nbsp;deuxième&nbsp;fonction&nbsp;auxiliaire&nbsp;qui&nbsp;est&nbsp;appelée&nbsp;pour&nbsp;remonter&nbsp;la&nbsp;liste&nbsp;des&nbsp;objets&nbsp;appelés.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Par&nbsp;exemple,&nbsp;pour&nbsp;a.b.c.print_obj(),&nbsp;on&nbsp;passe&nbsp;à&nbsp;aux&nbsp;l'objet&nbsp;en&nbsp;cours&nbsp;(initialement&nbsp;a),<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ainsi&nbsp;que&nbsp;la&nbsp;liste&nbsp;des&nbsp;champs&nbsp;et&nbsp;des&nbsp;méthodes&nbsp;appelés&nbsp;et&nbsp;aux&nbsp;s'occupe&nbsp;de&nbsp;vérifier&nbsp;que&nbsp;ceux-ci<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;appartiennent&nbsp;à&nbsp;la&nbsp;classe&nbsp;parente,&nbsp;ont&nbsp;le&nbsp;bon&nbsp;type&nbsp;et&nbsp;sont&nbsp;appelés&nbsp;avec&nbsp;le&nbsp;bon&nbsp;nombre&nbsp;d'arguments&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;type_op&nbsp;l&nbsp;=&nbsp;&nbsp;<span class="comment">(*&nbsp;type_op&nbsp;est&nbsp;le&nbsp;type&nbsp;de&nbsp;l'objet&nbsp;courant,&nbsp;l&nbsp;la&nbsp;liste&nbsp;des&nbsp;champs&nbsp;ou&nbsp;méthode&nbsp;appelés&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;type_op&nbsp;<span class="comment">(*&nbsp;la&nbsp;liste&nbsp;est&nbsp;vide:&nbsp;on&nbsp;a&nbsp;fini,&nbsp;on&nbsp;renvoit&nbsp;le&nbsp;type&nbsp;courant&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(n,arg_opt)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;sinon&nbsp;on&nbsp;regarde&nbsp;le&nbsp;premier&nbsp;objet&nbsp;de&nbsp;nom&nbsp;n&nbsp;appelé&nbsp;avec&nbsp;les&nbsp;arguments&nbsp;arg_opt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;type_op&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;le&nbsp;type&nbsp;courant&nbsp;n'est&nbsp;pas&nbsp;une&nbsp;classe,&nbsp;impossible&nbsp;de&nbsp;choisir&nbsp;un&nbsp;membre:&nbsp;on&nbsp;renvoit&nbsp;TBad&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TNone</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;<span class="string">"L'op\195\169rande&nbsp;doit&nbsp;\195\170tre&nbsp;une&nbsp;classe"</span>;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;type_op<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;c'est&nbsp;une&nbsp;classe&nbsp;de&nbsp;nom&nbsp;class_name&nbsp;*)</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TClass</span>(class_name)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;le&nbsp;symbole&nbsp;associé&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;symb&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;class_name&nbsp;gc&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;regarde&nbsp;les&nbsp;arguments&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;arg_opt&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="comment">(*&nbsp;il&nbsp;y&nbsp;en&nbsp;a&nbsp;pas:l'objet&nbsp;n&nbsp;est&nbsp;donc&nbsp;un&nbsp;champ&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;field&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;(<span class="constructor">Ast</span>.get_name&nbsp;n)&nbsp;symb.fields&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;n&nbsp;((<span class="constructor">F</span>&nbsp;field));&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;le&nbsp;symbole&nbsp;et&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;nom&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;field.field_type&nbsp;q&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;appelle&nbsp;aux&nbsp;avec&nbsp;le&nbsp;type&nbsp;du&nbsp;champ&nbsp;et&nbsp;la&nbsp;liste&nbsp;des&nbsp;membres&nbsp;restants&nbsp;*)</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">|</span>_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="comment">(*&nbsp;List.assoc&nbsp;soulève&nbsp;une&nbsp;exeception:&nbsp;le&nbsp;champ&nbsp;n'existe&nbsp;pas&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"M\195\169thode&nbsp;\\'"</span>^class_name^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>(<span class="constructor">Ast</span>.<span class="constructor">Arguments</span>(_,<span class="constructor">Ast</span>.<span class="constructor">Expressions</span>(_,arg_list)))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="comment">(*&nbsp;il&nbsp;y&nbsp;a&nbsp;des&nbsp;arguments:&nbsp;n&nbsp;est&nbsp;une&nbsp;méthode&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;meth&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;(<span class="constructor">Ast</span>.get_name&nbsp;n)&nbsp;symb.methods&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;le&nbsp;symbole&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;n&nbsp;(<span class="constructor">M</span>&nbsp;meth);&nbsp;<span class="comment">(*&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;nom&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;calcule&nbsp;la&nbsp;longueur&nbsp;des&nbsp;liste&nbsp;des&nbsp;types&nbsp;attendus&nbsp;et&nbsp;des&nbsp;expressions&nbsp;passées&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;l1&nbsp;=&nbsp;<span class="constructor">List</span>.length&nbsp;meth.params_type<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">and</span>&nbsp;l2&nbsp;=&nbsp;<span class="constructor">List</span>.length&nbsp;arg_list<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;l1&nbsp;=&nbsp;l2&nbsp;<span class="keyword">then</span>&nbsp;<span class="comment">(*&nbsp;si&nbsp;c'est&nbsp;la&nbsp;même&nbsp;tout&nbsp;va&nbsp;bien&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;le&nbsp;type&nbsp;des&nbsp;arguments&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;verif_args&nbsp;meth.params_type&nbsp;arg_list<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;sinon,&nbsp;on&nbsp;affiche&nbsp;une&nbsp;erreur&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"La&nbsp;m\195\169thode&nbsp;est&nbsp;appliqu\195\169e&nbsp;\195\160&nbsp;"</span>^(string_of_int&nbsp;l2)^<span class="string">"&nbsp;au&nbsp;lieu&nbsp;de&nbsp;"</span>^(string_of_int&nbsp;l1)^<span class="string">"&nbsp;argument(s)."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;continue&nbsp;le&nbsp;travail&nbsp;avec&nbsp;le&nbsp;type&nbsp;de&nbsp;retour&nbsp;de&nbsp;la&nbsp;méthode&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;meth.return_type&nbsp;q<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="comment">(*&nbsp;si&nbsp;List.assoc&nbsp;renvoit&nbsp;une&nbsp;erreur:&nbsp;la&nbsp;méthode&nbsp;n'existe&nbsp;pas&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"M\195\169thode&nbsp;\\'"</span>^(<span class="constructor">Ast</span>.get_name&nbsp;n)^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;List.assoc&nbsp;renvoit&nbsp;une&nbsp;erreur:&nbsp;la&nbsp;classe&nbsp;courant&nbsp;n'existe&nbsp;pas&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Classe&nbsp;\\'"</span>^class_name^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*&nbsp;on&nbsp;appelle&nbsp;aux&nbsp;sur&nbsp;le&nbsp;type&nbsp;du&nbsp;simplefactor&nbsp;initial*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;(analyse_simplefactor&nbsp;gc&nbsp;gv&nbsp;sf)&nbsp;l&nbsp;<br>
+<span class="keyword">and</span>&nbsp;analyse_simplefactor&nbsp;gc&nbsp;gv&nbsp;sf&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;sf&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Ident</span>(pos,n)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;le&nbsp;symbole&nbsp;de&nbsp;la&nbsp;variable&nbsp;et&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;champ&nbsp;symbol&nbsp;de&nbsp;son&nbsp;nom&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;sym&nbsp;=&nbsp;find_type_var&nbsp;gv&nbsp;(<span class="constructor">Ast</span>.get_name&nbsp;n)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;n&nbsp;(<span class="constructor">V</span>&nbsp;sym);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sym.var_type&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;renvoit&nbsp;son&nbsp;type&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Symbole&nbsp;\\'"</span>^(<span class="constructor">Ast</span>.get_name&nbsp;n)^<span class="string">"\\'&nbsp;non&nbsp;d\195\169fini."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_RD_Int</span>(_)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_RD_Char</span>&nbsp;(_)&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;tout&nbsp;ca,&nbsp;ca&nbsp;renvoit&nbsp;du&nbsp;TInt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Number</span>(_,_)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;apelle&nbsp;simplement&nbsp;analyse_expression&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Expr</span>&nbsp;(_,e)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;e<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;pour&nbsp;le&nbsp;corps&nbsp;d'une&nbsp;méthode&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Body</span>&nbsp;(_,<span class="constructor">Ast</span>.<span class="constructor">Statements</span>(_,l),e)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;évalue&nbsp;les&nbsp;statements&nbsp;en&nbsp;mettant&nbsp;à&nbsp;jour&nbsp;le&nbsp;contexte&nbsp;de&nbsp;variables&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;gv'&nbsp;=&nbsp;<span class="constructor">List</span>.fold_left&nbsp;(analyse_statement&nbsp;gc)&nbsp;gv&nbsp;l&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;renvoit&nbsp;le&nbsp;type&nbsp;de&nbsp;l'expression&nbsp;du&nbsp;return&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_expression&nbsp;gc&nbsp;gv'&nbsp;e<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_New</span>&nbsp;(pos,n,<span class="constructor">Ast</span>.<span class="constructor">Arguments</span>(_,<span class="constructor">Ast</span>.<span class="constructor">Expressions</span>(_,arg_list)))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;la&nbsp;même&nbsp;fonction&nbsp;que&nbsp;tout&nbsp;à&nbsp;l'heure&nbsp;qui&nbsp;vérifie&nbsp;que&nbsp;les&nbsp;arguments&nbsp;collent&nbsp;avec&nbsp;le&nbsp;type&nbsp;attendu&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;verif_args&nbsp;type_list&nbsp;expr_list&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;type_list,expr_list&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(t1::tl,e1::el)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_expr&nbsp;=&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;e1&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;not&nbsp;(analyse_is_subtype&nbsp;gc&nbsp;type_expr&nbsp;t1)&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Expression</span>(pos_e,_,_)&nbsp;=&nbsp;e1&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos_e&nbsp;(error_wrong_type&nbsp;t1&nbsp;type_expr)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;verif_args&nbsp;tl&nbsp;el&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()&nbsp;&nbsp;<span class="comment">(*&nbsp;cas&nbsp;impossible,&nbsp;les&nbsp;deux&nbsp;liste&nbsp;font&nbsp;la&nbsp;même&nbsp;taille&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;le&nbsp;symbole&nbsp;de&nbsp;l'objet&nbsp;que&nbsp;l'on&nbsp;crée&nbsp;*)</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;obj&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;(<span class="constructor">Ast</span>.get_name&nbsp;n)&nbsp;gc&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;Ast.name&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;n&nbsp;(<span class="constructor">C</span>&nbsp;obj);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;les&nbsp;types&nbsp;des&nbsp;champs&nbsp;à&nbsp;initialiser&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;type_list&nbsp;=&nbsp;<span class="constructor">List</span>.map&nbsp;(<span class="keyword">fun</span>&nbsp;x&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">let</span>&nbsp;(_,t)&nbsp;=&nbsp;x&nbsp;<span class="keyword">in</span>&nbsp;t.field_type)&nbsp;obj.fields<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;l1&nbsp;=&nbsp;<span class="constructor">List</span>.length&nbsp;type_list<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">and</span>&nbsp;l2&nbsp;=&nbsp;<span class="constructor">List</span>.length&nbsp;arg_list<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;on&nbsp;a&nbsp;le&nbsp;nombre&nbsp;de&nbsp;champs&nbsp;attendus&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;l1&nbsp;=&nbsp;l2&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;verif_args&nbsp;type_list&nbsp;arg_list&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;leur&nbsp;type&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;sinon&nbsp;on&nbsp;crie&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Le&nbsp;constructeur&nbsp;de&nbsp;'"</span>^(<span class="constructor">Ast</span>.get_name&nbsp;n)^<span class="string">"'&nbsp;attend&nbsp;"</span>^(string_of_int&nbsp;l1)^<span class="string">"&nbsp;arguments&nbsp;et&nbsp;non&nbsp;"</span>^(string_of_int&nbsp;l2)^<span class="string">"."</span>);&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;et&nbsp;on&nbsp;renvoit&nbsp;le&nbsp;type&nbsp;de&nbsp;la&nbsp;nouvelle&nbsp;classe&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TClass</span>(<span class="constructor">Ast</span>.get_name&nbsp;n)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;au&nbsp;cas&nbsp;où&nbsp;le&nbsp;nom&nbsp;de&nbsp;classe&nbsp;est&nbsp;erroné&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Classe&nbsp;\\'"</span>^(<span class="constructor">Ast</span>.get_name&nbsp;n)^<span class="string">"\\'&nbsp;non&nbsp;d\195\169finie."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="comment">(*&nbsp;prend&nbsp;en&nbsp;argument&nbsp;un&nbsp;Ast.statements_t&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;analyse_statement&nbsp;gc&nbsp;gv&nbsp;s&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;s&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;IF&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_If</span>&nbsp;(_,t,s1,s2))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;le&nbsp;test&nbsp;du&nbsp;IF&nbsp;doit&nbsp;être&nbsp;de&nbsp;type&nbsp;TInt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()&nbsp;<span class="comment">(*&nbsp;ok&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;bad_type&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Expression</span>(pos,_,_)=&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;bad_type)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;que&nbsp;tout&nbsp;va&nbsp;bien&nbsp;dans&nbsp;le&nbsp;THEN&nbsp;ELSE&nbsp;*)</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;analyse_statement&nbsp;gc&nbsp;gv&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>&nbsp;s1)&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">and</span>&nbsp;_&nbsp;=&nbsp;analyse_statement&nbsp;gc&nbsp;gv&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>&nbsp;s2)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;WHILE&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_While</span>&nbsp;(_,t,s1))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;le&nbsp;test&nbsp;du&nbsp;WHILE&nbsp;doit&nbsp;être&nbsp;de&nbsp;type&nbsp;TInt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()&nbsp;&nbsp;<span class="comment">(*&nbsp;ok&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;bad_type&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Expression</span>(pos,_,_)=&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;bad_type)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;que&nbsp;l'intérieur&nbsp;de&nbsp;la&nbsp;boucle&nbsp;est&nbsp;correct&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;analyse_statement&nbsp;gc&nbsp;gv&nbsp;(<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>&nbsp;s1)&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Déclaration&nbsp;de&nbsp;variable&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Var_Decl</span>(<span class="constructor">Ast</span>.<span class="constructor">VarDecl</span>(pos1,<span class="constructor">Ast</span>.<span class="constructor">Formal</span>(pos2,n,ttypeT),t))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;typeT&nbsp;=&nbsp;<span class="constructor">Ast</span>.dtype_of_ttype&nbsp;ttypeT&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*&nbsp;on&nbsp;passe&nbsp;de&nbsp;ttype&nbsp;à&nbsp;dtype&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;analyse_type&nbsp;pos1&nbsp;gc&nbsp;typeT;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;que&nbsp;le&nbsp;type&nbsp;est&nbsp;bien&nbsp;formé&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;var_symbol&nbsp;=&nbsp;{var_type=typeT;&nbsp;var_offset=<span class="constructor">None</span>}&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;n&nbsp;(<span class="constructor">V</span>&nbsp;var_symbol);&nbsp;<span class="comment">(*&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;name&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;typeexpr&nbsp;=&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;t&nbsp;&nbsp;<span class="comment">(*&nbsp;type&nbsp;de&nbsp;l'expression&nbsp;qui&nbsp;initialise&nbsp;la&nbsp;variable&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;not&nbsp;(analyse_is_subtype&nbsp;gc&nbsp;typeexpr&nbsp;typeT)&nbsp;<span class="keyword">then</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;la&nbsp;relation&nbsp;de&nbsp;sous-typage&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos2&nbsp;(error_wrong_type&nbsp;typeT&nbsp;typeexpr);&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span>&nbsp;<span class="comment">(*&nbsp;si&nbsp;le&nbsp;sous-typage&nbsp;est&nbsp;correct,&nbsp;on&nbsp;vérifie&nbsp;que&nbsp;la&nbsp;variable&nbsp;n'est&nbsp;pas&nbsp;déjà&nbsp;déclarée&nbsp;*)</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;s&nbsp;=&nbsp;<span class="constructor">Ast</span>.get_name&nbsp;n&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;find_var_in_current_scope&nbsp;gv&nbsp;s&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos1&nbsp;(<span class="string">"Nom&nbsp;de&nbsp;variable&nbsp;d\195\169j\195\160&nbsp;d\195\169clar\195\169:&nbsp;"</span>^s);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;gv&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;add_var&nbsp;gv&nbsp;(<span class="constructor">Ast</span>.get_name&nbsp;n,var_symbol);&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;ajoute&nbsp;la&nbsp;variable&nbsp;au&nbsp;contexte&nbsp;de&nbsp;variable&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;SET&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_Set</span>(pos,n,t))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;string&nbsp;de&nbsp;nom&nbsp;de&nbsp;la&nbsp;variable&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;s&nbsp;=&nbsp;<span class="constructor">Ast</span>.get_name&nbsp;n&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;typeT&nbsp;=&nbsp;find_type_var&nbsp;gv&nbsp;s&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;récupère&nbsp;le&nbsp;symbole&nbsp;et&nbsp;on&nbsp;met&nbsp;à&nbsp;jour&nbsp;le&nbsp;name&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Ast</span>.set_symbol&nbsp;n&nbsp;(<span class="constructor">V</span>&nbsp;typeT);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;typeexpr&nbsp;=&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;t&nbsp;&nbsp;<span class="comment">(*&nbsp;type&nbsp;de&nbsp;l'expression&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;not&nbsp;(analyse_is_subtype&nbsp;gc&nbsp;typeexpr&nbsp;typeT.var_type)&nbsp;<span class="keyword">then</span>&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;vérifie&nbsp;la&nbsp;relation&nbsp;de&nbsp;sous-typage&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;typeT.var_type&nbsp;typeexpr);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;la&nbsp;variable&nbsp;n'existe&nbsp;pas:&nbsp;problème&nbsp;*)</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(<span class="string">"Symbole&nbsp;\\'"</span>^s^<span class="string">"\\'&nbsp;non&nbsp;d\195\169fini."</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_Do</span>(pos,t))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="comment">(*&nbsp;on&nbsp;évalue&nbsp;l'expression,&nbsp;ca&nbsp;ne&nbsp;change&nbsp;pas&nbsp;le&nbsp;contexte&nbsp;de&nbsp;variables&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_PrintInt</span>(pos,t))&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_PrintChar</span>(pos,t))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;analyse_expression&nbsp;gc&nbsp;gv&nbsp;t&nbsp;<span class="keyword">with</span>&nbsp;&nbsp;<span class="comment">(*&nbsp;les&nbsp;expressions&nbsp;en&nbsp;arguments&nbsp;doivent&nbsp;être&nbsp;de&nbsp;type&nbsp;TInt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TBad</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;bad_type&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">let</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Expression</span>(pos,_,_)=&nbsp;t&nbsp;<span class="keyword">in</span>&nbsp;<span class="constructor">Report</span>.error_at_pos&nbsp;pos&nbsp;(error_wrong_type&nbsp;<span class="constructor">Ast</span>.<span class="constructor">TInt</span>&nbsp;bad_type);&nbsp;gv<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Ast</span>.<span class="constructor">Stat_Statement</span>(<span class="constructor">Ast</span>.<span class="constructor">Sta_Bloc</span>(_,<span class="constructor">Ast</span>.<span class="constructor">Statements</span>(_,l)))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="comment">(*&nbsp;on&nbsp;évalue&nbsp;le&nbsp;bloc:&nbsp;il&nbsp;faut&nbsp;rajouter&nbsp;un&nbsp;nouveau&nbsp;bloc&nbsp;temporaire&nbsp;au&nbsp;contexte&nbsp;de&nbsp;variables&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;new_gv&nbsp;=&nbsp;add_block&nbsp;gv&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;<span class="constructor">List</span>.fold_left&nbsp;(<span class="keyword">fun</span>&nbsp;gv2&nbsp;stat&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;analyse_statement&nbsp;gc&nbsp;gv2&nbsp;stat)&nbsp;new_gv&nbsp;l&nbsp;<span class="keyword">in</span>&nbsp;gv<br>
+<br>
+<br>
+<span class="keyword">and</span>&nbsp;print_class_scope&nbsp;cs=&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;petites&nbsp;fonctions&nbsp;d'affichage&nbsp;pour&nbsp;débuggage&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;cs&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(s,class_symbol)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"CLASSE:&nbsp;%s\n"</span>&nbsp;s;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;s&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"&nbsp;-&gt;&nbsp;PARENTS:&nbsp;%s\n"</span>&nbsp;s)&nbsp;class_symbol.parents;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_field_scope&nbsp;class_symbol.fields;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_method_scope&nbsp;class_symbol.methods;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.printf(<span class="string">"\n"</span>);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_class_scope&nbsp;q;<br>
+<span class="keyword">and</span>&nbsp;print_field_scope&nbsp;fs=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;fs&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(s,field_symbol)::q&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"&nbsp;&nbsp;FIELD:&nbsp;%s,&nbsp;type&nbsp;%s\n"</span>&nbsp;s&nbsp;(<span class="constructor">Ast</span>.print_type&nbsp;field_symbol.field_type);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_field_scope&nbsp;q;<br>
+<span class="keyword">and</span>&nbsp;print_method_scope&nbsp;ms&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;ms&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(s,method_symbol)::q1&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;method_symbol.params_type&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"&nbsp;&nbsp;MEMBER:&nbsp;%s&nbsp;:&nbsp;%s("</span>&nbsp;s&nbsp;(<span class="constructor">Ast</span>.print_type&nbsp;method_symbol.return_type);&nbsp;print_string&nbsp;<span class="string">")\n"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_method_scope&nbsp;q1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;t::q2&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"&nbsp;&nbsp;MEMBER:&nbsp;%s&nbsp;:&nbsp;%s(%s"</span>&nbsp;s&nbsp;(<span class="constructor">Ast</span>.print_type&nbsp;method_symbol.return_type)&nbsp;(<span class="constructor">Ast</span>.print_type&nbsp;t);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;dtype&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">",%s"</span>&nbsp;(<span class="constructor">Ast</span>.print_type&nbsp;dtype))&nbsp;q2;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_string&nbsp;<span class="string">")\n"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_method_scope&nbsp;q1<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="keyword">and</span>&nbsp;main&nbsp;filename=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;in_channel&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;filename&nbsp;=&nbsp;<span class="string">"--"</span>&nbsp;<span class="keyword">then</span>&nbsp;stdin&nbsp;<span class="keyword">else</span>&nbsp;open_in&nbsp;filename&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;chars&nbsp;=&nbsp;<span class="constructor">CharReader</span>.charReader_of_in_channel&nbsp;in_channel&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;scanner&nbsp;=&nbsp;<span class="constructor">Scanner</span>.new_scanner&nbsp;chars&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;tree&nbsp;=&nbsp;<span class="constructor">Parser</span>.parse&nbsp;scanner&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;analyse_program&nbsp;tree;<br>
+&nbsp;&nbsp;<span class="constructor">Report</span>.exit_on_error&nbsp;();<br>
+&nbsp;&nbsp;print_string&nbsp;<span class="string">"Analyse&nbsp;successful\n"</span></code></body></html>

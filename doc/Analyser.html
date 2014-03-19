@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Ast.html">
+<link rel="next" href="Generator.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Ast" rel="Chapter" href="Ast.html">
+<link title="Analyser" rel="Chapter" href="Analyser.html">
+<link title="Generator" rel="Chapter" href="Generator.html"><link title="Point d'entrée du module " rel="Section" href="#3_Pointdentredumodule">
+<link title="Outils de débug " rel="Section" href="#3_Outilsdedbug">
+<link title="Fonctions basiques diverses " rel="Section" href="#3_Fonctionsbasiquesdiverses">
+<link title="Fonctions de traitement des contextes de variable " rel="Section" href="#3_Fonctionsdetraitementdescontextesdevariable">
+<link title="Analyse de l'arbre de syntaxe abstraite " rel="Subsection" href="#5_Analysedelarbredesyntaxeabstraite">
+<title>Analyser</title>
+</head>
+<body>
+<div class="navbar"><a href="Ast.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Generator.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Analyser.html">Analyser</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Analyser: <code class="code">sig</code> <a href="Analyser.html">..</a> <code class="code">end</code></pre>Effectue l'analyse de type de l'arbre de syntaxe abstraite<br>
+<hr width="100%">
+<br>
+<a name="3_Pointdentredumodule"></a>
+<h3>Point d'entrée du module </h3><br>
+<pre><span class="keyword">val</span> <a name="VALmain"></a>main : <code class="type">string -> unit</code></pre><br>
+<a name="3_Outilsdedbug"></a>
+<h3>Outils de débug </h3><br>
+<pre><span class="keyword">val</span> <a name="VALerror_wrong_type"></a>error_wrong_type : <code class="type"><a href="Ast.html#TYPEdtype">Ast.dtype</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a> -> string</code></pre><div class="info">
+Affichage d'une erreur "type attendu &lt;&gt; type reçu"<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALprint_class_scope"></a>print_class_scope : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALprint_field_scope"></a>print_field_scope : <code class="type"><a href="Ast.html#TYPEfield_scope">Ast.field_scope</a> -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALprint_method_scope"></a>print_method_scope : <code class="type"><a href="Ast.html#TYPEmethod_scope">Ast.method_scope</a> -> unit</code></pre><br>
+<a name="3_Fonctionsbasiquesdiverses"></a>
+<h3>Fonctions basiques diverses </h3><br>
+<pre><span class="keyword">val</span> <a name="VALanalyse_get_members"></a>analyse_get_members : <code class="type"><a href="Ast.html#TYPEmember">Ast.member</a> list -><br>       (string * <a href="Ast.html#TYPEfield_symbol">Ast.field_symbol</a>) list * (string * <a href="Ast.html#TYPEmethod_symbol">Ast.method_symbol</a>) list</code></pre><div class="info">
+Extrait les champs et méthodes d'une liste d_members<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_xunion_m"></a>analyse_xunion_m : <code class="type">(string * <a href="Ast.html#TYPEmethod_symbol">Ast.method_symbol</a>) list -><br>       <a href="Ast.html#TYPEmethod_scope">Ast.method_scope</a> -> string list -> <a href="Ast.html#TYPEmethod_scope">Ast.method_scope</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_xunion_f"></a>analyse_xunion_f : <code class="type">(string * <a href="Ast.html#TYPEfield_symbol">Ast.field_symbol</a>) list -> <a href="Ast.html#TYPEfield_scope">Ast.field_scope</a> -> <a href="Ast.html#TYPEfield_scope">Ast.field_scope</a></code></pre><br>
+<a name="3_Fonctionsdetraitementdescontextesdevariable"></a>
+<h3>Fonctions de traitement des contextes de variable </h3><br>
+<pre><span class="keyword">val</span> <a name="VALfind_type_var"></a>find_type_var : <code class="type"><a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> string -> <a href="Ast.html#TYPEvar_symbol">Ast.var_symbol</a></code></pre><div class="info">
+renvoit le type de var dans le contexte de variable amélioré (groupe bleu)<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALfind_var_in_current_scope"></a>find_var_in_current_scope : <code class="type"><a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> string -> <a href="Ast.html#TYPEvar_symbol">Ast.var_symbol</a></code></pre><div class="info">
+si une var existe dans le bloc courant, renvoit le symbole associée, sinon, soulève Not_Found<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALadd_var"></a>add_var : <code class="type"><a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> string * <a href="Ast.html#TYPEvar_symbol">Ast.var_symbol</a> -> <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a></code></pre><div class="info">
+ajoute var au contexte de variable du bloc courant<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALadd_block"></a>add_block : <code class="type"><a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a></code></pre><div class="info">
+crée un nouveau bloc dans le contexte de variable<br>
+</div>
+<br>
+<a name="5_Analysedelarbredesyntaxeabstraite"></a>
+<h5>Analyse de l'arbre de syntaxe abstraite </h5><br>
+<pre><span class="keyword">val</span> <a name="VALanalyse_addclass"></a>analyse_addclass : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEname">Ast.name</a> -><br>       string list -><br>       <a href="Ast.html#TYPEfield_scope">Ast.field_scope</a> -> <a href="Ast.html#TYPEmethod_scope">Ast.method_scope</a> -> (string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list</code></pre><div class="info">
+Ajoute une classe à un c_scope<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_class"></a>analyse_class : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEclassdecl">Ast.classdecl</a> -> (string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list</code></pre><div class="info">
+Effectue l'insertion de classe<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_classdef"></a>analyse_classdef : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list Pervasives.ref -> <a href="Ast.html#TYPEclassdecl">Ast.classdecl</a> -> unit</code></pre><div class="info">
+Analyse la définition d'une classe<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_exist_class"></a>analyse_exist_class : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> string -> bool</code></pre><div class="info">
+Retourne true si la classe c_id a été insérée dans le c_scope<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_expression"></a>analyse_expression : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEexpression">Ast.expression</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_factor"></a>analyse_factor : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEfactor">Ast.factor</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_field"></a>analyse_field : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list Pervasives.ref -><br>       <a href="Ast.html#TYPEname">Ast.name</a> -> <a href="Ast.html#TYPEfielddecl">Ast.fielddecl</a> -> <a href="Ast.html#TYPEsymbol">Ast.symbol</a> -> unit</code></pre><div class="info">
+Analyse d'un champ<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_formal"></a>analyse_formal : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> <a href="Ast.html#TYPEformal">Ast.formal</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><div class="info">
+Retourne le type du Formal : AFAIRE TBAD<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_member"></a>analyse_member : <code class="type">string -><br>       (string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list Pervasives.ref -><br>       <a href="Ast.html#TYPEname">Ast.name</a> -> <a href="Ast.html#TYPEsymbol">Ast.symbol</a> -> <a href="Ast.html#TYPEmember">Ast.member</a> -> unit</code></pre><div class="info">
+Analyse des membres d'une classe<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_method"></a>analyse_method : <code class="type">string -><br>       (string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list Pervasives.ref -><br>       <a href="Ast.html#TYPEname">Ast.name</a> -> <a href="Ast.html#TYPEmethoddef">Ast.methoddef</a> -> <a href="Ast.html#TYPEsymbol">Ast.symbol</a> -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_program"></a>analyse_program : <code class="type"><a href="Ast.html#TYPEprogram">Ast.program</a> -> unit</code></pre><div class="info">
+Effectue l'analyse de type du programme<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_signedfactor"></a>analyse_signedfactor : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEsignedfactor">Ast.signedfactor</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_simplefactor"></a>analyse_simplefactor : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEsimplefactor">Ast.simplefactor</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_statement"></a>analyse_statement : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEstatements_t">Ast.statements_t</a> -> <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_is_subtype"></a>analyse_is_subtype : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> <a href="Ast.html#TYPEdtype">Ast.dtype</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a> -> bool</code></pre><div class="info">
+Retourne true si t1 est un sous-type de t2<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALanalyse_sumexpression"></a>analyse_sumexpression : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -><br>       <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEsumexpression">Ast.sumexpression</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_term"></a>analyse_term : <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> <a href="Ast.html#TYPEvar_scope">Ast.var_scope</a> -> <a href="Ast.html#TYPEterm">Ast.term</a> -> <a href="Ast.html#TYPEdtype">Ast.dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALanalyse_type"></a>analyse_type : <code class="type"><a href="Ast.html#TYPEposition">Ast.position</a> -> (string * <a href="Ast.html#TYPEclass_symbol">Ast.class_symbol</a>) list -> <a href="Ast.html#TYPEdtype">Ast.dtype</a> -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALmain"></a>main : <code class="type">string -> unit</code></pre></body></html>

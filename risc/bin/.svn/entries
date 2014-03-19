@@ -1,0 +1,54 @@
+8
+
+dir
+3328
+https://lampsvn.epfl.ch/svn-repos/lamp/www/trunk/teaching/compilation/project/risc/bin
+https://lampsvn.epfl.ch/svn-repos/lamp
+
+
+
+2006-11-20T13:50:45.875398Z
+3117
+mihaylov
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+c2b5fe70-0d1f-0410-848a-a28dd871345c
+
+risc-emu
+file
+
+
+
+
+2006-11-20T13:50:45.000000Z
+b924fbfa157faf7c123aef6fac95ef05
+2006-11-20T13:50:45.875398Z
+3117
+mihaylov
+has-props
+
+risc-gui
+file
+
+
+
+
+2006-11-20T13:50:45.000000Z
+23f47d40085db85bc3edf8c2309ce0a8
+2006-11-20T13:50:45.875398Z
+3117
+mihaylov
+has-props
+

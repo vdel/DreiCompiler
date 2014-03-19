@@ -1,0 +1,745 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Analyser.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Ast" rel="Chapter" href="Ast.html">
+<link title="Analyser" rel="Chapter" href="Analyser.html">
+<link title="Generator" rel="Chapter" href="Generator.html"><title>Ast</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Analyser.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Ast.html">Ast</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Ast: <code class="code">sig</code> <a href="Ast.html">..</a> <code class="code">end</code></pre>Contient tous les types utilisés pour décrire l'arbre de syntaxe abstraite<br>
+<hr width="100%">
+<pre><span class="keyword">type</span> <a name="TYPEposition"></a><code class="type"></code>position = <code class="type">int * int</code> </pre>
+
+<pre><span class="keyword">type</span> <a name="TYPElabel"></a><code class="type"></code>label = <code class="type">string</code> </pre>
+
+<pre><span class="keyword">type</span> <a name="TYPEregistre"></a><code class="type"></code>registre = <code class="type">int</code> </pre>
+
+<br><code><span class="keyword">type</span> <a name="TYPEdtype"></a><code class="type"></code>dtype = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">TClass</span> <span class="keyword">of</span> <code class="type">string</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">TArray</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEdtype">dtype</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">TInt</span></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">TNone</span></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">TBad</span></code></td>
+
+</tr></table>
+
+
+<pre><span class="keyword">val</span> <a name="VALprint_type"></a><a href="code_VALAst.print_type.html">print_type</a> : <code class="type"><a href="Ast.html#TYPEdtype">dtype</a> -> string</code></pre><br><code><span class="keyword">type</span> <a name="TYPEvar_symbol"></a><code class="type"></code>var_symbol = {</code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>var_type&nbsp;: <code class="type"><a href="Ast.html#TYPEdtype">dtype</a></code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>var_offset&nbsp;: <code class="type">int option</code>;</code></td>
+
+</tr></table>
+}
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEfield_symbol"></a><code class="type"></code>field_symbol = {</code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>field_type&nbsp;: <code class="type"><a href="Ast.html#TYPEdtype">dtype</a></code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>field_offset&nbsp;: <code class="type">int option</code>;</code></td>
+
+</tr></table>
+}
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEmethod_symbol"></a><code class="type"></code>method_symbol = {</code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>params_type&nbsp;: <code class="type"><a href="Ast.html#TYPEdtype">dtype</a> list</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>return_type&nbsp;: <code class="type"><a href="Ast.html#TYPEdtype">dtype</a></code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>method_label&nbsp;: <code class="type"><a href="Ast.html#TYPElabel">label</a> option</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>method_offset&nbsp;: <code class="type">int option</code>;</code></td>
+
+</tr></table>
+}
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEclass_symbol"></a><code class="type"></code>class_symbol = {</code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>parents&nbsp;: <code class="type">string list</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>fields&nbsp;: <code class="type"><a href="Ast.html#TYPEfield_scope">field_scope</a></code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>methods&nbsp;: <code class="type"><a href="Ast.html#TYPEmethod_scope">method_scope</a></code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>class_label&nbsp;: <code class="type"><a href="Ast.html#TYPElabel">label</a> option</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>address&nbsp;: <code class="type">int option</code>;</code></td>
+
+</tr></table>
+}
+
+
+<pre><span class="keyword">type</span> <a name="TYPEvar_scope"></a><code class="type"></code>var_scope = <code class="type">(string * <a href="Ast.html#TYPEvar_symbol">var_symbol</a>) list list</code> </pre>
+
+<pre><span class="keyword">type</span> <a name="TYPEfield_scope"></a><code class="type"></code>field_scope = <code class="type">(string * <a href="Ast.html#TYPEfield_symbol">field_symbol</a>) list</code> </pre>
+
+<pre><span class="keyword">type</span> <a name="TYPEmethod_scope"></a><code class="type"></code>method_scope = <code class="type">(string * <a href="Ast.html#TYPEmethod_symbol">method_symbol</a>) list</code> </pre>
+
+<pre><span class="keyword">type</span> <a name="TYPEclass_scope"></a><code class="type"></code>class_scope = <code class="type">(string * <a href="Ast.html#TYPEclass_symbol">class_symbol</a>) list</code> </pre>
+
+<br><code><span class="keyword">type</span> <a name="TYPEsymbol"></a><code class="type"></code>symbol = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">V</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEvar_symbol">var_symbol</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">F</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEfield_symbol">field_symbol</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">M</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEmethod_symbol">method_symbol</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">C</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEclass_symbol">class_symbol</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEname"></a><code class="type"></code>name = {</code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code>name&nbsp;: <code class="type">string</code>;</code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code>&nbsp;&nbsp;</code></td>
+<td align="left" valign="top" >
+<code><span class="keyword">mutable&nbsp;</span>symbol&nbsp;: <code class="type"><a href="Ast.html#TYPEsymbol">symbol</a> option</code>;</code></td>
+
+</tr></table>
+}
+
+
+<pre><span class="keyword">val</span> <a name="VALmk_name"></a><a href="code_VALAst.mk_name.html">mk_name</a> : <code class="type">string -> <a href="Ast.html#TYPEname">name</a></code></pre><pre><span class="keyword">val</span> <a name="VALget_name"></a><a href="code_VALAst.get_name.html">get_name</a> : <code class="type"><a href="Ast.html#TYPEname">name</a> -> string</code></pre><pre><span class="keyword">val</span> <a name="VALset_symbol"></a><a href="code_VALAst.set_symbol.html">set_symbol</a> : <code class="type"><a href="Ast.html#TYPEname">name</a> -> <a href="Ast.html#TYPEsymbol">symbol</a> -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALget_offset"></a><a href="code_VALAst.get_offset.html">get_offset</a> : <code class="type"><a href="Ast.html#TYPEsymbol">symbol</a> option -> int</code></pre><br><code><span class="keyword">type</span> <a name="TYPEprogram"></a><code class="type"></code>program = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Program</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEclassdecl">classdecl</a> list * <a href="Ast.html#TYPEstatement">statement</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEclassdecl"></a><code class="type"></code>classdecl = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">ClassDecl</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEname">name</a> * <a href="Ast.html#TYPEname">name</a> option * <a href="Ast.html#TYPEmember">member</a> list</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEmember"></a><code class="type"></code>member = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Mem_Field</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEfielddecl">fielddecl</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Mem_Method</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEmethoddef">methoddef</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEfielddecl"></a><code class="type"></code>fielddecl = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">FieldDecl</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEformal">formal</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEmethoddef"></a><code class="type"></code>methoddef = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Method_Def_Long</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEmethodheader">methodheader</a> * <a href="Ast.html#TYPEttype">ttype</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Method_Def_Short</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEmethodheader">methodheader</a> * <a href="Ast.html#TYPEstatements">statements</a></code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >META LANGAGE *</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Method_Def_ignore_Long</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEmethodheader">methodheader</a> * <a href="Ast.html#TYPEttype">ttype</a> * <a href="Ast.html#TYPEstatements">statements</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Method_Def_ignore_Short</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEmethodheader">methodheader</a> * <a href="Ast.html#TYPEstatements">statements</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEmethodheader"></a><code class="type"></code>methodheader = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">MethodHeader</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEname">name</a> * <a href="Ast.html#TYPEformal">formal</a> list</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEformal"></a><code class="type"></code>formal = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Formal</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEname">name</a> * <a href="Ast.html#TYPEttype">ttype</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEttype"></a><code class="type"></code>ttype = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Array_Type</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEttype">ttype</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Class_Type</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEname">name</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Int_Type</span></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">No_Type</span></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEvardecl"></a><code class="type"></code>vardecl = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">VarDecl</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEformal">formal</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEstatements_t"></a><code class="type"></code>statements_t = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Stat_Var_Decl</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEvardecl">vardecl</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Stat_Statement</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEstatement">statement</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEstatements"></a><code class="type"></code>statements = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Statements</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEstatements_t">statements_t</a> list</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEstatement"></a><code class="type"></code>statement = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Print_Asm</span> <span class="keyword">of</span> <code class="type">string</code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_While</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a> * <a href="Ast.html#TYPEstatement">statement</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_If</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a> * <a href="Ast.html#TYPEstatement">statement</a> * <a href="Ast.html#TYPEstatement">statement</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_Set</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEname">name</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_Do</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_PrintInt</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_PrintChar</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Sta_Bloc</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEstatements">statements</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEexpression"></a><code class="type"></code>expression = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Expression</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEsumexpression">sumexpression</a> * (<a href="Ast.html#TYPEcompop">compop</a> * <a href="Ast.html#TYPEsumexpression">sumexpression</a>) option</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEcompop"></a><code class="type"></code>compop = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">CO_EQ</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">CO_NE</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">CO_LT</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">CO_GT</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">CO_LE</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">CO_GE</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEsumexpression"></a><code class="type"></code>sumexpression = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">SumExpression</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEterm">term</a> * (<a href="Ast.html#TYPEsumop">sumop</a> * <a href="Ast.html#TYPEterm">term</a>) list</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEsumop"></a><code class="type"></code>sumop = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">SO_ADD</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">SO_SUB</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">SO_BIN_OR</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">SO_BIN_XOR</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEsignedfactor"></a><code class="type"></code>signedfactor = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">SignedFactor</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEnegateop">negateop</a> option * <a href="Ast.html#TYPEfactor">factor</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEterm"></a><code class="type"></code>term = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Term</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEsignedfactor">signedfactor</a> * (<a href="Ast.html#TYPEprodop">prodop</a> * <a href="Ast.html#TYPEsignedfactor">signedfactor</a>) list</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEnegateop"></a><code class="type"></code>negateop = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">NO_SUB</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">NO_NOT</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">NO_BIN_NOT</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEprodop"></a><code class="type"></code>prodop = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_DIESE</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >/TABLEAUX *</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_MUL</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_DIV</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_MOD</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_AND</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_BIN_AND</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_BIN_LSL</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">PO_BIN_LSR</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEsimplefactor"></a><code class="type"></code>simplefactor = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_Ident</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEname">name</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_Number</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * Int32.t</code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >TABLEAUX *</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_Array</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEarguments">arguments</a></code></code></td>
+<td class="typefieldcomment" align="left" valign="top" ><code>(*</code></td><td class="typefieldcomment" align="left" valign="top" >/TABLEAUX *</td><td class="typefieldcomment" align="left" valign="bottom" ><code>*)</code></td>
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_RD_Int</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_RD_Char</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_Expr</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_Body</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEstatements">statements</a> * <a href="Ast.html#TYPEexpression">expression</a></code></code></td>
+
+</tr>
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Fact_New</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEname">name</a> * <a href="Ast.html#TYPEarguments">arguments</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEfactor"></a><code class="type"></code>factor = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Factor</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEsimplefactor">simplefactor</a> * (<a href="Ast.html#TYPEname">name</a> * <a href="Ast.html#TYPEarguments">arguments</a> option) list</code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEarguments"></a><code class="type"></code>arguments = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Arguments</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpressions">expressions</a></code></code></td>
+
+</tr></table>
+
+
+<br><code><span class="keyword">type</span> <a name="TYPEexpressions"></a><code class="type"></code>expressions = </code><table class="typetable">
+<tr>
+<td align="left" valign="top" >
+<code><span class="keyword">|</span></code></td>
+<td align="left" valign="top" >
+<code><span class="constructor">Expressions</span> <span class="keyword">of</span> <code class="type"><a href="Ast.html#TYPEposition">position</a> * <a href="Ast.html#TYPEexpression">expression</a> list</code></code></td>
+
+</tr></table>
+
+
+<pre><span class="keyword">val</span> <a name="VALdtype_of_ttype"></a><a href="code_VALAst.dtype_of_ttype.html">dtype_of_ttype</a> : <code class="type"><a href="Ast.html#TYPEttype">ttype</a> -> <a href="Ast.html#TYPEdtype">dtype</a></code></pre><pre><span class="keyword">val</span> <a name="VALaff_tree"></a><a href="code_VALAst.aff_tree.html">aff_tree</a> : <code class="type">'a -> unit</code></pre></body></html>

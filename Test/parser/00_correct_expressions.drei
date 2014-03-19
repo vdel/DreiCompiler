@@ -1,0 +1,38 @@
+{
+  do 42;
+  do a;
+  do { return 0};
+  do { return a };
+  do { var a: Int = 42; return a };
+  do "abc";
+  do true;
+  do false;
+  do this;
+  do readInt;
+  do readChar;
+  do new List(x, xs);
+  do xs.head;
+  do xs.head.head.head;
+  do xs.tail().head.tail().head.tail();
+  do this.foo();
+  do this.foo(42);
+  do this.foo(4,2);
+  do this.foo().bar();
+  do new List().head;
+  do ("expression");
+  do a == b;
+  do a != b;
+  do a <  b;
+  do a <= b;
+  do a >  b;
+  do a >= b;
+  do a || b;
+  do a && b;
+  do !a;
+  do -a;
+  do a + b;
+  do a - b;
+  do a * b;
+  do a / b;
+  do a % b;
+}

@@ -1,0 +1,17 @@
+#!/bin/sh
+
+link="$0";
+
+while test -h "$link"; do
+    path="`dirname $link`";
+    link="`ls -l \$link`";
+    link=`expr "$link" : ".*-> \(.*\)"`;
+    if expr "$link" : \\/ = 0 > /dev/null; then link="$path/$link"; fi;
+done;
+
+path="`dirname $link`";
+root="`cd $path/..; pwd`";
+home="$root";
+classpath="$home/lib/risc.jar";
+
+exec java -classpath "$classpath" risc.gui.RiscDebugger "$@"

@@ -1,0 +1,15 @@
+{
+  var n: Int = 0;
+  var s: Int = 0;
+  while (true) printInt(42);
+  while (x < 10) {
+    set n = n + 1;
+    set s = s + n;
+  }
+  if (true) printInt(1);
+  if (true) { printInt(1); }
+  if (true) printInt(1); else printInt(0);
+  if (true) { printInt(1); } else { printInt(0); }
+  printInt (s);
+  printChar (10);
+}

@@ -1,0 +1,758 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Generator" rel="Chapter" href="Generator.html"><title>Generator.print_label</title>
+</head>
+<body>
+<code class="code"><span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;frame_size&nbsp;=&nbsp;ref&nbsp;0<br>
+<span class="comment">(*&nbsp;alloue&nbsp;n&nbsp;octects&nbsp;dans&nbsp;le&nbsp;bloc&nbsp;courant&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;incFrameSize&nbsp;n&nbsp;=&nbsp;(frame_size:=&nbsp;!frame_size&nbsp;+&nbsp;n)<br>
+<br>
+<span class="comment">(*&nbsp;libere&nbsp;n&nbsp;octects&nbsp;dans&nbsp;le&nbsp;bloc&nbsp;courant&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;decFrameSize&nbsp;n&nbsp;=&nbsp;frame_size:=&nbsp;!frame_size&nbsp;-&nbsp;n<br>
+<br>
+<span class="comment">(*&nbsp;renvoit&nbsp;la&nbsp;taille&nbsp;du&nbsp;bloc&nbsp;courant&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;getFrameSize&nbsp;()&nbsp;=&nbsp;!frame_size<br>
+<br>
+<span class="comment">(*&nbsp;opérations&nbsp;sur&nbsp;les&nbsp;registres&nbsp;*)</span><br>
+<span class="comment">(*&nbsp;le&nbsp;registre&nbsp;rsp&nbsp;est&nbsp;le&nbsp;registre&nbsp;courant:&nbsp;il&nbsp;est&nbsp;vide,&nbsp;il&nbsp;attend&nbsp;d'être&nbsp;initialisé&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;rsp&nbsp;=&nbsp;ref&nbsp;1<br>
+<span class="keyword">and</span>&nbsp;reg_saved&nbsp;=&nbsp;ref&nbsp;[]&nbsp;<br>
+<span class="comment">(*&nbsp;alloue&nbsp;un&nbsp;nouveau&nbsp;registre,&nbsp;crie&nbsp;si&nbsp;on&nbsp;na&nbsp;plus&nbsp;de&nbsp;29&nbsp;registres&nbsp;alloués&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;freshReg&nbsp;()&nbsp;=<br>
+&nbsp;&nbsp;rsp:=&nbsp;!rsp+1;&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;!rsp&gt;max_reg&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.fail&nbsp;(<span class="string">"Plus&nbsp;de&nbsp;"</span>^(string_of_int&nbsp;max_reg)^<span class="string">"&nbsp;registres&nbsp;allou\195\169s,&nbsp;je&nbsp;ne&nbsp;sais&nbsp;pas&nbsp;quoi&nbsp;faire&nbsp;!!!"</span>)<br>
+&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;!rsp<br>
+<span class="comment">(*libère&nbsp;le&nbsp;dernier&nbsp;registre&nbsp;alloué&nbsp;*)</span>&nbsp;<br>
+<span class="keyword">and</span>&nbsp;dropReg&nbsp;()&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;rsp:=&nbsp;!rsp-1;&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;!rsp&lt;1&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Nombre&nbsp;de&nbsp;registres&nbsp;allou\195\169s&nbsp;inf\195\169rieur&nbsp;\195\160&nbsp;1&nbsp;!!!"</span><br>
+&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;()<br>
+<span class="comment">(*prochain&nbsp;registre&nbsp;alloué:&nbsp;il&nbsp;est&nbsp;vide,&nbsp;il&nbsp;attend&nbsp;d'être&nbsp;initialisé*)</span><br>
+<span class="keyword">and</span>&nbsp;topReg&nbsp;()&nbsp;=&nbsp;!rsp<br>
+<span class="keyword">and</span>&nbsp;sndReg&nbsp;()&nbsp;=&nbsp;!rsp-1<br>
+<span class="comment">(*nombre&nbsp;de&nbsp;registres&nbsp;libres*)</span><br>
+<span class="keyword">and</span>&nbsp;nbrReg&nbsp;()&nbsp;=&nbsp;max_reg-topReg()<br>
+<span class="comment">(*pour&nbsp;sauver&nbsp;les&nbsp;registres&nbsp;dans&nbsp;la&nbsp;pile*)</span><br>
+<span class="keyword">and</span>&nbsp;save_reg&nbsp;n&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ret&nbsp;=&nbsp;ref&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">for</span>&nbsp;i&nbsp;=&nbsp;topReg()-1&nbsp;<span class="keyword">downto</span>&nbsp;topReg()-n&nbsp;<span class="keyword">do</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;push&nbsp;i;&nbsp;ret&nbsp;:=&nbsp;i::(!ret);<br>
+&nbsp;&nbsp;<span class="keyword">done</span>;<br>
+&nbsp;&nbsp;rsp:=topReg()-n;<br>
+&nbsp;&nbsp;!ret<br>
+<span class="comment">(*pour&nbsp;restorer&nbsp;les&nbsp;registres&nbsp;de&nbsp;la&nbsp;pile*)</span><br>
+<span class="keyword">and</span>&nbsp;load_reg&nbsp;l&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;x&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;incr&nbsp;rsp;&nbsp;pop&nbsp;x)&nbsp;l<br>
+<br>
+<span class="comment">(*fonctions&nbsp;de&nbsp;sortie:&nbsp;permettent&nbsp;de&nbsp;connaitre&nbsp;la&nbsp;taille&nbsp;du&nbsp;code&nbsp;écrit&nbsp;jusqu'ici*)</span><br>
+<span class="keyword">and</span>&nbsp;addr=ref&nbsp;0<br>
+<span class="comment">(*tient&nbsp;à&nbsp;jours&nbsp;l'adresse&nbsp;courante,&nbsp;affiche&nbsp;une&nbsp;instruction&nbsp;et&nbsp;éventuellement&nbsp;un&nbsp;commentaire*)</span><br>
+<span class="keyword">and</span>&nbsp;print&nbsp;instr&nbsp;commentaire=<br>
+&nbsp;&nbsp;addr:=&nbsp;!addr+4;<br>
+&nbsp;&nbsp;print_string&nbsp;instr;<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;commentaire&lt;&gt;<span class="string">""</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">for</span>&nbsp;i=(<span class="constructor">String</span>.length&nbsp;instr)&nbsp;<span class="keyword">to</span>&nbsp;30&nbsp;<span class="keyword">do</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_string&nbsp;<span class="string">"&nbsp;"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">done</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"//&nbsp;%s"</span>&nbsp;commentaire<br>
+&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;print_string&nbsp;<span class="string">"\n"</span>;&nbsp;<br>
+<span class="keyword">and</span>&nbsp;print_3&nbsp;instr&nbsp;a1&nbsp;a2&nbsp;a3&nbsp;commentaire=<br>
+&nbsp;&nbsp;print&nbsp;(<span class="string">"&nbsp;&nbsp;"</span>^instr^<span class="string">"&nbsp;"</span>^a1^<span class="string">"&nbsp;"</span>^a2^<span class="string">"&nbsp;"</span>^a3)&nbsp;commentaire<br>
+<span class="keyword">and</span>&nbsp;print_2&nbsp;instr&nbsp;a1&nbsp;a2&nbsp;commentaire=<br>
+&nbsp;&nbsp;print&nbsp;(<span class="string">"&nbsp;&nbsp;"</span>^instr^<span class="string">"&nbsp;"</span>^a1^<span class="string">"&nbsp;"</span>^a2)&nbsp;commentaire<br>
+<span class="keyword">and</span>&nbsp;print_1&nbsp;instr&nbsp;a1&nbsp;commentaire=<br>
+&nbsp;&nbsp;print&nbsp;(<span class="string">"&nbsp;&nbsp;"</span>^instr^<span class="string">"&nbsp;"</span>^a1^<span class="string">"&nbsp;"</span>)&nbsp;commentaire<br>
+<span class="keyword">and</span>&nbsp;print_0&nbsp;instr&nbsp;commentaire=<br>
+&nbsp;&nbsp;print&nbsp;(<span class="string">"&nbsp;&nbsp;"</span>^instr)&nbsp;commentaire<br>
+<span class="keyword">and</span>&nbsp;print_label&nbsp;label=<br>
+&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"%s:\n"</span>&nbsp;label;<br>
+<br>
+<span class="comment">(*&nbsp;empiler&nbsp;la&nbsp;valeur&nbsp;dans&nbsp;le&nbsp;registre&nbsp;[r]&nbsp;sur&nbsp;la&nbsp;pile&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;push&nbsp;r&nbsp;=<br>
+&nbsp;&nbsp;incFrameSize&nbsp;4;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"PSH"</span>&nbsp;(reg&nbsp;r)&nbsp;(reg&nbsp;r_sp)&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span><br>
+&nbsp;<br>
+<span class="comment">(*&nbsp;dépiler,&nbsp;en&nbsp;lisant&nbsp;dans&nbsp;un&nbsp;registre&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;pop&nbsp;r&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;decFrameSize&nbsp;4;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"POP"</span>&nbsp;(reg&nbsp;r)&nbsp;(reg&nbsp;r_sp)&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span><br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_program&nbsp;(<span class="constructor">Program</span>(class_decl_list,stat))&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"start"</span>;<br>
+&nbsp;&nbsp;print_2&nbsp;<span class="string">"BEQ"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"init"</span>&nbsp;<span class="string">"saute&nbsp;au&nbsp;code&nbsp;d\226\128\153initialisation\n"</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Génération&nbsp;des&nbsp;VMTs&nbsp;*)</span><br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"vmts"</span>;<br>
+&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;generate_vmt&nbsp;class_decl_list;<br>
+&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"\n"</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Les&nbsp;méthodes&nbsp;*)</span><br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"methods"</span>;<br>
+&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"\n"</span>;<br>
+&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;generate_class&nbsp;class_decl_list;&nbsp;<br>
+&nbsp;&nbsp;frame_size:=0;<br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(** TABLEAUX **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"error_"</span>&nbsp;;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"97"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"6"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">""</span>;<br>
+</code><table><tr><td></td><td><span class="comment">(** /TABLEAUX **)</span></td></tr></table><code class="code"><br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code"><br>
+<span class="keyword">if</span>&nbsp;(gc_pourri&nbsp;=&nbsp;1)&nbsp;<span class="keyword">then</span><br>
+<span class="keyword">begin</span><br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Le&nbsp;GC&nbsp;*)</span><br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"gc_init_"</span>;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Initialise&nbsp;le&nbsp;GC&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">"on&nbsp;met&nbsp;l'adresse&nbsp;du&nbsp;tas&nbsp;+&nbsp;4"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"5000"</span>&nbsp;<span class="string">"on&nbsp;met&nbsp;la&nbsp;taille&nbsp;du&nbsp;tas"</span>;<br>
+&nbsp;<span class="comment">(*&nbsp;print_3&nbsp;ADDI"R1"R2"0"on&nbsp;met&nbsp;l'adresse&nbsp;du&nbsp;tas&nbsp;dans&nbsp;R1;*)</span><br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;stocke&nbsp;dans&nbsp;le&nbsp;premier&nbsp;bloc&nbsp;du&nbsp;tas&nbsp;l'objet&nbsp;Gc&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">"adresse&nbsp;de&nbsp;la&nbsp;VMT"</span>;&nbsp;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"this.memory"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span>;<br>
+<span class="comment">(*&nbsp;&nbsp;print_3&nbsp;"&nbsp;"&nbsp;"&nbsp;"&nbsp;";*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"8"</span>&nbsp;<span class="string">"this.max_size"</span>;<br>
+&nbsp;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"DIVI"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"2"</span>&nbsp;<span class="string">"memto/memfrom"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"12"</span>&nbsp;<span class="string">"this.memto"</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;va&nbsp;maintenant&nbsp;lancer&nbsp;Gc.Init(taille)&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"adresse&nbsp;de&nbsp;la&nbsp;vmt&nbsp;dans&nbsp;R3"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"adresse&nbsp;de&nbsp;Init&nbsp;dans&nbsp;R3"</span>;<br>
+&nbsp;&nbsp;push&nbsp;(3);<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"20"</span>&nbsp;<span class="string">"taille,&nbsp;argument&nbsp;s"</span>;<br>
+&nbsp;&nbsp;push&nbsp;(2);<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r_lnk)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;(!addr+8))&nbsp;<span class="string">""</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;saute*)</span><br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;<span class="string">"R4"</span>&nbsp;<span class="string">"On&nbsp;appelle&nbsp;Init(s)"</span>;&nbsp;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Fin&nbsp;de&nbsp;l'initialisation&nbsp;*)</span><br>
+&nbsp;&nbsp;print_2&nbsp;<span class="string">"BEQ"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"main"</span>&nbsp;<span class="string">""</span><br>
+<span class="keyword">end</span>;<br>
+</code><table><tr><td></td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Le&nbsp;code&nbsp;principal&nbsp;*)</span><br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"main"</span>;<br>
+&nbsp;&nbsp;generate_statement&nbsp;stat;<br>
+&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"\n"</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;fait&nbsp;un&nbsp;flush&nbsp;de&nbsp;la&nbsp;sortie&nbsp;standard&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"15"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"quitte&nbsp;l\226\128\153emulateur"</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;code&nbsp;d'initialisation&nbsp;*)</span><br>
+&nbsp;&nbsp;print_label&nbsp;<span class="string">"init"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;r_sp)&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"13"</span>&nbsp;<span class="string">"initialise&nbsp;le&nbsp;pointeur&nbsp;de&nbsp;pile"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"((init&nbsp;&gt;&gt;&nbsp;16)&nbsp;&amp;&nbsp;0xffff)"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"LSHI"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"16"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"(init&nbsp;&amp;&nbsp;0xffff)"</span>&nbsp;<span class="string">"le&nbsp;tas&nbsp;commence&nbsp;en&nbsp;init"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SUB"</span>&nbsp;<span class="string">"R2"</span>&nbsp;(reg&nbsp;r_sp)&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"taille&nbsp;memoire&nbsp;sans&nbsp;le&nbsp;code"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"DIVIU"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"(3*4)"</span>&nbsp;<span class="string">"coupe&nbsp;en&nbsp;trois&nbsp;morceaux"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"LSHI"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"1"</span>&nbsp;<span class="string">"deux&nbsp;tiers&nbsp;pour&nbsp;le&nbsp;tas"</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;r_sp)&nbsp;(<span class="string">"registre&nbsp;de&nbsp;pile&nbsp;="</span>^(string_of_int&nbsp;r_sp));<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"LSHI"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">"27"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"OR"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"R3"</span>&nbsp;<span class="string">""</span>;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;</code><table><tr><td>&nbsp;&nbsp;</td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(gc_pourri&nbsp;=&nbsp;1)&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_2&nbsp;<span class="string">"BEQ"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"gc_init_"</span>&nbsp;<span class="string">"initialisation&nbsp;du&nbsp;GC"</span><br>
+&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;</code><table><tr><td>&nbsp;&nbsp;</td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;<span class="string">"R1"</span>&nbsp;<span class="string">"R2"</span>&nbsp;<span class="string">"11"</span>&nbsp;<span class="string">"initialise&nbsp;le&nbsp;GC&nbsp;de&nbsp;l'emulateur"</span>;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_2&nbsp;<span class="string">"BEQ"</span>&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"main"</span>&nbsp;<span class="string">"saute&nbsp;a&nbsp;la&nbsp;fonction&nbsp;principale"</span>&nbsp;<br>
+&nbsp;&nbsp;</code><table><tr><td>&nbsp;&nbsp;</td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code">&nbsp;<span class="keyword">end</span>&nbsp;</code><table><tr><td>&nbsp;&nbsp;&nbsp;&nbsp;</td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+<br>
+<br>
+<span class="comment">(*&nbsp;Regarde&nbsp;si&nbsp;expr&nbsp;-&gt;&nbsp;boolean&nbsp;et&nbsp;si&nbsp;oui,<br>
+&nbsp;&nbsp;&nbsp;saute&nbsp;sur&nbsp;label&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_condition&nbsp;label&nbsp;boolean&nbsp;expr&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;generate_expression&nbsp;expr;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Test&nbsp;de&nbsp;comparaison&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(boolean)&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_2&nbsp;<span class="string">"BNE"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;label&nbsp;<span class="string">""</span><br>
+&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_2&nbsp;<span class="string">"BEQ"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;label&nbsp;<span class="string">""</span>;<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_boolean_mask&nbsp;instr&nbsp;=<br>
+&nbsp;&nbsp;print_2&nbsp;instr&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"3"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;c'est&nbsp;faux&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"BSR"</span>&nbsp;<span class="string">"2"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;si&nbsp;c'est&nbsp;vrai&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"1"</span>&nbsp;<span class="string">""</span>;<br>
+<br>
+<span class="comment">(*&nbsp;Génère&nbsp;le&nbsp;code&nbsp;calculant&nbsp;une&nbsp;expression&nbsp;et&nbsp;le&nbsp;place&nbsp;dans&nbsp;&nbsp;*)</span>&nbsp;<br>
+<span class="keyword">and</span>&nbsp;generate_expression&nbsp;expr&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;expr&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Expression</span>(_,&nbsp;sumexpr,&nbsp;<span class="constructor">None</span>)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_sumexpression&nbsp;sumexpr<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Expression</span>(_,&nbsp;sumexpr1,&nbsp;<span class="constructor">Some</span>(op,&nbsp;sumexpr2))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_sumexpression&nbsp;sumexpr1;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_sumexpression&nbsp;sumexpr2;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;instr&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;op&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CO_EQ</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"BEQ"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CO_NE</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"BNE"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CO_LT</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"BLT"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CO_GT</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"BGT"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CO_LE</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"BLE"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">CO_GE</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"BGE"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"CMP"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dropReg&nbsp;();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_boolean_mask&nbsp;instr;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_sumexpression&nbsp;sumexpr&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;generate_list&nbsp;l&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">SO_ADD</span>(0,0)&nbsp;<span class="comment">(*impossible*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[(op,terme)]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_term&nbsp;terme;&nbsp;op<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(new_op,&nbsp;terme)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;op&nbsp;=&nbsp;generate_list&nbsp;q&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*résultat&nbsp;du&nbsp;calcul&nbsp;dans&nbsp;topReg:&nbsp;renvoit&nbsp;l'opération&nbsp;à&nbsp;faire&nbsp;avec&nbsp;le&nbsp;terme&nbsp;de&nbsp;gauche*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_term&nbsp;terme;&nbsp;<span class="comment">(*maintenant&nbsp;dans&nbsp;topReg:&nbsp;terme&nbsp;de&nbsp;gauche,&nbsp;dans&nbsp;sndReg:&nbsp;terme&nbsp;de&nbsp;droite*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;process_op&nbsp;op;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;new_op<br>
+&nbsp;&nbsp;<span class="keyword">and</span>&nbsp;process_op&nbsp;op&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;op&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SO_ADD</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SO_SUB</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"SUB"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SO_BIN_OR</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"OR"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SO_BIN_XOR</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"XOR"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;dropReg&nbsp;()<br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;sumexpr&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SumExpression</span>(_,&nbsp;terme,&nbsp;[])&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_term&nbsp;terme<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SumExpression</span>(_,&nbsp;terme,&nbsp;l)&nbsp;&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;saved_registers&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;nbrReg()=0&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;1&nbsp;<span class="keyword">else</span>&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;op&nbsp;=&nbsp;generate_list&nbsp;l&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*résultat&nbsp;du&nbsp;calcul&nbsp;dans&nbsp;topReg:&nbsp;renvoit&nbsp;l'opération&nbsp;à&nbsp;faire&nbsp;avec&nbsp;le&nbsp;terme&nbsp;de&nbsp;gauche*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_term&nbsp;terme;&nbsp;<span class="comment">(*maintenant&nbsp;dans&nbsp;topReg:&nbsp;terme&nbsp;de&nbsp;gauche,&nbsp;dans&nbsp;sndReg:&nbsp;terme&nbsp;de&nbsp;droite*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;process_op&nbsp;op;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;saved_registers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_term&nbsp;terme=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;generate_list&nbsp;l&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">PO_MUL</span>(0,0)&nbsp;<span class="comment">(*impossible*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[(op,&nbsp;signedfact)]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_signedfactor&nbsp;signedfact;&nbsp;op<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(new_op,&nbsp;signedfact)::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;op&nbsp;=&nbsp;generate_list&nbsp;q&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*résultat&nbsp;du&nbsp;calcul&nbsp;dans&nbsp;topReg:&nbsp;renvoit&nbsp;l'opération&nbsp;à&nbsp;faire&nbsp;avec&nbsp;le&nbsp;facteur&nbsp;de&nbsp;gauche*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_signedfactor&nbsp;signedfact;&nbsp;<span class="comment">(*maintenant&nbsp;dans&nbsp;topReg:&nbsp;facteur&nbsp;de&nbsp;gauche,&nbsp;dans&nbsp;sndReg:&nbsp;facteur&nbsp;de&nbsp;droite*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;process_op&nbsp;op;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;new_op<br>
+&nbsp;&nbsp;<span class="keyword">and</span>&nbsp;process_op&nbsp;op&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;op&nbsp;<span class="keyword">with</span><br>
+</code><table><tr><td></td><td><span class="comment">(** TABLEAUX **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_DIESE</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;r1,r2&nbsp;=&nbsp;topReg(),sndReg()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"MULI"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;(reg&nbsp;r1)&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SUB"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;(topReg()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_2&nbsp;<span class="string">"BGE"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"error_"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;dropReg()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;<br>
+&nbsp;</code><table><tr><td>&nbsp;</td><td><span class="comment">(** /TABLEAUX **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_MUL</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"MUL"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_DIV</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"DIV"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_MOD</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"MOD"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_AND</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"AND"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_boolean_mask&nbsp;<span class="string">"BNE"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_BIN_AND</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"AND"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_BIN_LSL</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"ASH"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">PO_BIN_LSR</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SUB"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ASH"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;dropReg&nbsp;()<br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;terme&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Term</span>(_,&nbsp;signedfact,[])&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_signedfactor&nbsp;signedfact<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Term</span>(_,&nbsp;signedfact,l)&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;saved_registers&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;nbrReg()=0&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;1&nbsp;<span class="keyword">else</span>&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;op&nbsp;=&nbsp;generate_list&nbsp;l&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*résultat&nbsp;du&nbsp;calcul&nbsp;dans&nbsp;topReg:&nbsp;renvoit&nbsp;l'opération&nbsp;à&nbsp;faire&nbsp;avec&nbsp;le&nbsp;facteur&nbsp;de&nbsp;gauche*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_signedfactor&nbsp;signedfact;&nbsp;<span class="comment">(*maintenant&nbsp;dans&nbsp;topReg:&nbsp;facteur&nbsp;de&nbsp;gauche,&nbsp;dans&nbsp;sndReg:&nbsp;facteur&nbsp;de&nbsp;droite*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;process_op&nbsp;op;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;saved_registers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<span class="keyword">and</span>&nbsp;generate_signedfactor&nbsp;signedfact&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;signedfact&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SignedFactor</span>(_,&nbsp;<span class="constructor">None</span>,&nbsp;fact)&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_factor&nbsp;fact<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">SignedFactor</span>(_,&nbsp;<span class="constructor">Some</span>&nbsp;op,&nbsp;fact)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_factor&nbsp;fact;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;op&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">NO_SUB</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_3&nbsp;<span class="string">"SUB"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">NO_NOT</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_boolean_mask&nbsp;<span class="string">"BEQ"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">NO_BIN_NOT</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;saved_registers&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;nbrReg()=0&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;1&nbsp;<span class="keyword">else</span>&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"0xFFFF"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ASHI"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;(reg&nbsp;(topReg()))&nbsp;<span class="string">"16"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(topReg()))&nbsp;<span class="string">"0xFFFF"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"XOR"</span>&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(sndReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dropReg();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_factor&nbsp;fact&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;fact&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Factor</span>(_,&nbsp;simplefact,&nbsp;[])&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_simplefactor&nbsp;simplefact<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Factor</span>(_,&nbsp;simplefact,&nbsp;l)&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_simplefactor&nbsp;simplefact;&nbsp;<span class="comment">(*on&nbsp;récupère&nbsp;l'adresse&nbsp;de&nbsp;la&nbsp;classe*)</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;<span class="keyword">rec</span>&nbsp;aux&nbsp;l&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;(member,args)::q&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;member.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;<span class="constructor">F</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;offset=<span class="constructor">Ast</span>.get_offset&nbsp;member.symbol&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(string_of_int&nbsp;offset)&nbsp;(<span class="string">"valeur&nbsp;de&nbsp;"</span>^(get_name&nbsp;member)^<span class="string">"&nbsp;dans&nbsp;"</span>^(reg&nbsp;(topReg&nbsp;())));&nbsp;&nbsp;<span class="comment">(*on&nbsp;charge&nbsp;la&nbsp;valeur&nbsp;du&nbsp;champ*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;<span class="constructor">M</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;offset=<span class="constructor">Ast</span>.get_offset&nbsp;member.symbol&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;reg_address=topReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;l=save_reg&nbsp;((topReg&nbsp;())-1)&nbsp;<span class="keyword">in</span>&nbsp;<span class="comment">(*on&nbsp;sauve&nbsp;les&nbsp;registres,&nbsp;y&nbsp;compris&nbsp;l'adresse&nbsp;de&nbsp;la&nbsp;classe&nbsp;qui&nbsp;va&nbsp;servir&nbsp;à&nbsp;initialiser&nbsp;this*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;push(reg_address);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;charge&nbsp;l'adresse&nbsp;de&nbsp;la&nbsp;vmt*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;reg_address)&nbsp;<span class="string">"0"</span>&nbsp;(<span class="string">"adresse&nbsp;de&nbsp;la&nbsp;vmt&nbsp;dans&nbsp;"</span>^(reg&nbsp;(topReg&nbsp;())));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;charge&nbsp;l'adresse&nbsp;de&nbsp;la&nbsp;méthode*)</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(string_of_int&nbsp;offset)&nbsp;(<span class="string">"adresse&nbsp;de&nbsp;"</span>^(get_name&nbsp;member)^<span class="string">"&nbsp;dans&nbsp;"</span>^(reg&nbsp;(topReg&nbsp;())));&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;args&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;(<span class="constructor">Arguments</span>&nbsp;(_,<span class="constructor">Expressions</span>(_,args)))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;saved_registers&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;nbrReg()=0&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;1&nbsp;<span class="keyword">else</span>&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;_&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_args&nbsp;args;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;decFrameSize&nbsp;(((<span class="constructor">List</span>.length&nbsp;args)&nbsp;+&nbsp;1)*4);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dropReg();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;saved_registers<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r_lnk)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;(!addr+8))&nbsp;<span class="string">""</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;saute*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">""</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;saute*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;(reg&nbsp;reg_address)&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;r_return)&nbsp;<span class="string">"ON&nbsp;LOAD&nbsp;LES&nbsp;REg-iSters&nbsp;!&nbsp;*"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;l;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;aux&nbsp;q;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"bizar&nbsp;bizar&nbsp;dans&nbsp;generate.ml"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;aux&nbsp;l<br>
+<span class="comment">(*écrit&nbsp;les&nbsp;arguments&nbsp;d'une&nbsp;fonction&nbsp;dans&nbsp;la&nbsp;pile*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_args&nbsp;l=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;l&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;[]&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;expr::q&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_expression&nbsp;expr;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;push&nbsp;(topReg());<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_args&nbsp;q<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_simplefactor&nbsp;simplefact&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;simplefact&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;</code><table><tr><td>&nbsp;&nbsp;&nbsp;&nbsp;</td><td><span class="comment">(** TABLEAUX **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Array</span>(_,&nbsp;args)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;generate_array(args)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;</code><table><tr><td>&nbsp;&nbsp;&nbsp;&nbsp;</td><td><span class="comment">(** /TABLEAUX **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Ident</span>(_,&nbsp;var)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;var.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;symbole&nbsp;inconnu"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;(<span class="constructor">V</span>&nbsp;var_s)<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;var_s.var_offset&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;(<span class="string">"Erreur&nbsp;\195\160&nbsp;la&nbsp;g\195\169n\195\169ration&nbsp;du&nbsp;code:&nbsp;offset&nbsp;de&nbsp;la&nbsp;variable&nbsp;"</span>^(get_name&nbsp;var)^<span class="string">"&nbsp;inconnu"</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;offset&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;on&nbsp;charge&nbsp;la&nbsp;valeur&nbsp;de&nbsp;la&nbsp;variable&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;r_sp)&nbsp;(string_of_int&nbsp;((getFrameSize&nbsp;())-offset))&nbsp;(get_name&nbsp;var);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;on&nbsp;aurait&nbsp;d\195\187&nbsp;avoir&nbsp;un&nbsp;symbole&nbsp;de&nbsp;variable"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Number</span>(_,&nbsp;n)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(<span class="constructor">Int32</span>.shift_right&nbsp;n&nbsp;16&nbsp;=&nbsp;<span class="constructor">Int32</span>.of_int&nbsp;0)&nbsp;<span class="keyword">then</span>&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"R0"</span>&nbsp;(<span class="constructor">Int32</span>.to_string&nbsp;n)&nbsp;<span class="string">""</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;<span class="string">"R0"</span>&nbsp;(<span class="string">"(("</span>^(<span class="constructor">Int32</span>.to_string&nbsp;n)^<span class="string">"&nbsp;&gt;&gt;&nbsp;16)&nbsp;&amp;&nbsp;0xffff)"</span>)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LSHI"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;(reg&nbsp;(topReg()))&nbsp;<span class="string">"16"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;(topReg()))&nbsp;(reg&nbsp;(topReg()))&nbsp;(<span class="string">"("</span>^(<span class="constructor">Int32</span>.to_string&nbsp;n)^<span class="string">"&nbsp;&amp;&nbsp;0xffff)"</span>)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_RD_Int</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"15"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"2"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_RD_Char</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"15"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"1"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Expr</span>(_,&nbsp;expr)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_expression&nbsp;expr<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_Body</span>(_,&nbsp;stats,&nbsp;expr)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_statements&nbsp;stats;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_expression&nbsp;expr&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Fact_New</span>(_,&nbsp;classe,&nbsp;args)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_new&nbsp;(classe,args)<br>
+<br>
+&nbsp;&nbsp;<br>
+<span class="comment">(*&nbsp;**************&nbsp;*)</span><br>
+<span class="comment">(*&nbsp;LES&nbsp;STATEMENTS&nbsp;*)</span><br>
+<span class="comment">(*&nbsp;**************&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_statements&nbsp;(<span class="constructor">Statements</span>(_,&nbsp;stat_t_list))&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;generate_statement_t&nbsp;=&nbsp;<span class="keyword">function</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Stat_Var_Decl</span>&nbsp;(<span class="constructor">VarDecl</span>(_,&nbsp;<span class="constructor">Formal</span>(_,&nbsp;varname,&nbsp;_),&nbsp;expr))&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;varname.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;symbole&nbsp;inconnu"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;(<span class="constructor">V</span>&nbsp;var)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_expression&nbsp;expr;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;push&nbsp;(topReg());<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;var.var_offset&nbsp;&lt;-&nbsp;<span class="constructor">Some</span>&nbsp;(getFrameSize&nbsp;());&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;on&nbsp;aurait&nbsp;d\195\187&nbsp;avoir&nbsp;un&nbsp;symbole&nbsp;de&nbsp;variable"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Stat_Statement</span>&nbsp;stat&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_statement&nbsp;stat<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;generate_statement_t&nbsp;stat_t_list<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_statement&nbsp;statement=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;last_frame_size=&nbsp;getFrameSize()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;statement&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_While</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(_,&nbsp;expr,&nbsp;s_stat)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_while&nbsp;expr&nbsp;s_stat<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_If</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(_,&nbsp;expr,&nbsp;s_stat1,&nbsp;s_stat2)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_if&nbsp;expr&nbsp;s_stat1&nbsp;s_stat2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_Set</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(_,&nbsp;varname,&nbsp;expr)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_set&nbsp;varname&nbsp;expr<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_Do</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(_,&nbsp;expr)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_expression&nbsp;expr&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_PrintChar</span>&nbsp;(_,&nbsp;expr)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_printchar&nbsp;expr<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_PrintInt</span>&nbsp;&nbsp;(_,&nbsp;expr)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_printint&nbsp;expr<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Sta_Bloc</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(_,&nbsp;stats)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_statements&nbsp;stats<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Print_Asm</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(s)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print&nbsp;s&nbsp;<span class="string">""</span><br>
+&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;getFrameSize()-last_frame_size&lt;&gt;0&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;r_sp)&nbsp;(reg&nbsp;r_sp)&nbsp;(string_of_int&nbsp;(getFrameSize()-last_frame_size))&nbsp;<span class="string">"on&nbsp;d\195\169pile&nbsp;les&nbsp;variables&nbsp;d\195\169clar\195\169es&nbsp;dans&nbsp;le&nbsp;bloc"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;frame_size:=last_frame_size;<br>
+&nbsp;&nbsp;<span class="keyword">end</span><br>
+<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_while&nbsp;expr&nbsp;stat&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;s&nbsp;=&nbsp;new_label&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;print_label&nbsp;(<span class="string">"while_"</span>^s);<br>
+&nbsp;&nbsp;generate_condition&nbsp;(<span class="string">"finwhile_"</span>^s)&nbsp;<span class="keyword">false</span>&nbsp;expr;<br>
+&nbsp;&nbsp;generate_statement&nbsp;stat;<br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"JSR"</span>&nbsp;(<span class="string">"while_"</span>^s)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_label&nbsp;(<span class="string">"finwhile_"</span>^s)<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_if&nbsp;expr&nbsp;stat1&nbsp;stat2&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;s1&nbsp;=&nbsp;new_label&nbsp;()&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;generate_condition&nbsp;(<span class="string">"else_"</span>^s1)&nbsp;<span class="keyword">false</span>&nbsp;expr;<br>
+&nbsp;&nbsp;generate_statement&nbsp;stat1;&nbsp;<br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"JSR"</span>&nbsp;(<span class="string">"finelse_"</span>^s1)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_label&nbsp;(<span class="string">"else_"</span>^s1);<br>
+&nbsp;&nbsp;generate_statement&nbsp;stat2;<br>
+&nbsp;&nbsp;print_label&nbsp;(<span class="string">"finelse_"</span>^s1)<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_set&nbsp;varname&nbsp;expr&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;varname.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;symbole&nbsp;inconnu"</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;(<span class="constructor">V</span>&nbsp;var)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_expression&nbsp;expr;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;var.var_offset&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;\195\160&nbsp;la&nbsp;g\195\169n\195\169ration&nbsp;du&nbsp;code:&nbsp;offset&nbsp;de&nbsp;variable&nbsp;inconnu"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;offset<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;(reg&nbsp;r_sp)&nbsp;(string_of_int&nbsp;(getFrameSize()-offset))&nbsp;<span class="string">""</span>;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.fail&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;on&nbsp;aurait&nbsp;d\195\187&nbsp;avoir&nbsp;un&nbsp;symbole&nbsp;de&nbsp;variable"</span>&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_printchar&nbsp;expr&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Le&nbsp;résultat&nbsp;sera&nbsp;dans&nbsp;le&nbsp;registre&nbsp;R_RETURN&nbsp;*)</span><br>
+&nbsp;&nbsp;generate_expression&nbsp;expr;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"6"</span>&nbsp;<span class="string">""</span><br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_printint&nbsp;expr&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;generate_expression&nbsp;expr;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;(topReg&nbsp;()))&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">"7"</span>&nbsp;<span class="string">""</span><br>
+<br>
+<span class="comment">(*&nbsp;*******&nbsp;*)</span><br>
+<span class="comment">(*&nbsp;MEMBERS&nbsp;*)</span><br>
+<span class="comment">(*&nbsp;*******&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_member&nbsp;member&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;member&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Mem_Field</span>(fdecl)&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Mem_Method</span>(methdef)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_method&nbsp;methdef<br>
+<br>
+<span class="comment">(*&nbsp;Génère&nbsp;le&nbsp;code&nbsp;de&nbsp;la&nbsp;méthode&nbsp;mdef&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_method&nbsp;mdef&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;args_block_size=ref&nbsp;0&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;rsp&nbsp;:=&nbsp;1;<br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;mdef&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Method_Def_Long</span>(_,&nbsp;m_header,&nbsp;_,&nbsp;m_expr)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_method_label&nbsp;m_header;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;args_block_size:=&nbsp;getFrameSize();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_prolog&nbsp;();&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_expression(m_expr)&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Method_Def_Short</span>(_,&nbsp;m_header,&nbsp;m_stats)&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_method_label&nbsp;m_header;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;args_block_size:=&nbsp;getFrameSize();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_prolog&nbsp;();&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_statements(m_stats)<br>
+</code><table><tr><td></td><td><span class="comment">(** META LANGAGE                 **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Method_Def_ignore_Long</span>(_,&nbsp;m_header,&nbsp;_,&nbsp;m_stats)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_method_label&nbsp;m_header;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;args_block_size:=&nbsp;getFrameSize();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_prolog&nbsp;();&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_statements(m_stats)&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Method_Def_ignore_Short</span>(_,&nbsp;m_header,&nbsp;m_stats)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_method_label&nbsp;m_header;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;args_block_size:=&nbsp;getFrameSize();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_prolog&nbsp;();&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;generate_statements(m_stats)<br>
+<br>
+&nbsp;&nbsp;<span class="keyword">end</span>;<br>
+&nbsp;&nbsp;generate_epilog&nbsp;!args_block_size&nbsp;(((getFrameSize())&nbsp;-&nbsp;!args_block_size)&nbsp;-&nbsp;4)&nbsp;&nbsp;<br>
+<br>
+<span class="comment">(*&nbsp;Génère&nbsp;l'enregistrement&nbsp;d'activation&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_method_label&nbsp;header&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;header&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">MethodHeader</span>(_,&nbsp;m_name,&nbsp;formal_l)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;frame_size:=4*(<span class="constructor">List</span>.length&nbsp;formal_l)+4;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;m_name.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>(<span class="constructor">M</span>(m_symbol))&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_label&nbsp;m_symbol.method_label<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;<span class="string">"..pas&nbsp;de&nbsp;symbole&nbsp;pour&nbsp;le&nbsp;header&nbsp;de&nbsp;methode\n"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="keyword">and</span>&nbsp;generate_label&nbsp;m_label&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;m_label&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;<span class="string">"Pas&nbsp;de&nbsp;Label&nbsp;?\n"</span><br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>(label)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_label&nbsp;label<br>
+<br>
+<span class="comment">(*&nbsp;Pour&nbsp;abstraire&nbsp;un&nbsp;peu&nbsp;*)</span><br>
+<span class="keyword">and</span>&nbsp;generate_prolog&nbsp;()&nbsp;=<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;sauvegarde&nbsp;R_LNK&nbsp;*)</span><br>
+&nbsp;&nbsp;push&nbsp;31<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_epilog&nbsp;taille_parametres&nbsp;taille_variables&nbsp;=<br>
+<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;taille_variables&lt;&gt;&nbsp;0&nbsp;<span class="keyword">then</span>&nbsp;<span class="comment">(*&nbsp;on&nbsp;va&nbsp;chercher&nbsp;l'adresse&nbsp;de&nbsp;retour&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;r_sp)&nbsp;(reg&nbsp;r_sp)&nbsp;(string_of_int&nbsp;taille_variables)&nbsp;<span class="string">"on&nbsp;lib\195\168re&nbsp;les&nbsp;variables"</span>;<br>
+&nbsp;&nbsp;pop&nbsp;r_lnk;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;libère&nbsp;l'enregistrement&nbsp;d'activation&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;taille_parametres&lt;&gt;&nbsp;0&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;r_sp)&nbsp;(reg&nbsp;r_sp)&nbsp;(string_of_int&nbsp;taille_parametres)&nbsp;<span class="string">"on&nbsp;lib\195\168re&nbsp;les&nbsp;arguments"</span>;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;reloade&nbsp;LNK&nbsp;*)</span><br>
+&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;(reg&nbsp;r_lnk)&nbsp;<span class="string">""</span>;<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_class&nbsp;(<span class="constructor">ClassDecl</span>(_,&nbsp;class_name,&nbsp;_,&nbsp;member))&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;generate_member&nbsp;member<br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_vmt&nbsp;(<span class="constructor">ClassDecl</span>(_,class_name,parent,member))&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;class_name.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;(<span class="constructor">C</span>&nbsp;class_symb)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;class_label=<span class="string">"class_"</span>^(get_name&nbsp;class_name)&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;class_symb.class_label&lt;-<span class="constructor">Some</span>&nbsp;class_label;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_label&nbsp;class_label;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;class_symb.address&lt;-<span class="constructor">Some</span>&nbsp;!addr;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;parent&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;offset=ref&nbsp;0&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;(meth_name,meth_symb)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;meth_label=(get_name&nbsp;class_name)^<span class="string">"_"</span>^meth_name&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;meth_symb.method_label&lt;-<span class="constructor">Some</span>&nbsp;meth_label;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;meth_symb.method_offset&lt;-<span class="constructor">Some</span>&nbsp;!offset;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=&nbsp;!offset+4;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_1&nbsp;<span class="string">"DATA"</span>&nbsp;meth_label&nbsp;<span class="string">""</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;class_symb.methods;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=0;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;(field_name,field_symb)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=&nbsp;!offset+4;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;field_symb.field_offset&lt;-<span class="constructor">Some</span>&nbsp;!offset;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;class_symb.fields&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;parent_name&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;parent_name.symbol&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;(<span class="constructor">C</span>&nbsp;parent_symb)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;offset&nbsp;=&nbsp;ref&nbsp;(-4)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;(method_name,method_symbol)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ancien_symbol&nbsp;=&nbsp;<span class="constructor">List</span>.assoc&nbsp;method_name&nbsp;parent_symb.methods&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;method_symbol.method_offset&lt;-ancien_symbol.method_offset<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">|</span>_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;class_symb.methods;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;methods=<span class="constructor">List</span>.fast_sort&nbsp;(<span class="keyword">fun</span>&nbsp;(_,meth_symb1)&nbsp;(_,meth_symb2)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;meth_symb1.method_offset,meth_symb2.method_offset&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">None</span>,_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>_,<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;-1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;offset1,<span class="constructor">Some</span>&nbsp;offset2&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;offset1&gt;&nbsp;!offset&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=offset1<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;offset2&gt;&nbsp;!offset&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=offset2;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset1-offset2<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;class_symb.methods<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;(meth_name,meth_symb)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;meth_symb.method_label&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;meth_label=(get_name&nbsp;class_name)^<span class="string">"_"</span>^meth_name&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;meth_symb.method_label&lt;-<span class="constructor">Some</span>&nbsp;meth_label;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=&nbsp;!offset&nbsp;+&nbsp;4;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;meth_symb.method_offset&lt;-&nbsp;<span class="constructor">Some</span>&nbsp;!offset;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;print_1&nbsp;<span class="string">"DATA"</span>&nbsp;meth_label&nbsp;<span class="string">""</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;label&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;print_1&nbsp;<span class="string">"DATA"</span>&nbsp;label&nbsp;<span class="string">""</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;methods;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=0;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;(_,field_symb)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;field_symb.field_offset&nbsp;<span class="keyword">with</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;<span class="string">"Erreur&nbsp;\195\131&nbsp;&nbsp;la&nbsp;g\195\131\194\169n\195\131\194\169ration:&nbsp;offset&nbsp;de&nbsp;champ&nbsp;inconnu"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span><span class="constructor">Some</span>&nbsp;off_set&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keyword">if</span>&nbsp;off_set&gt;&nbsp;!offset&nbsp;<span class="keyword">then</span>&nbsp;offset:=off_set<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;parent_symb.fields;&nbsp;&nbsp;&nbsp;<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;(_,field_symb)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;field_symb.field_offset=<span class="constructor">None</span>&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;offset:=&nbsp;!offset+4;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;field_symb.field_offset&lt;-<span class="constructor">Some</span>&nbsp;!offset;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;class_symb.fields<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;symbole&nbsp;de&nbsp;classe&nbsp;incorrect"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Report</span>.error&nbsp;<span class="string">"Erreur&nbsp;au&nbsp;typage:&nbsp;symbole&nbsp;de&nbsp;classe&nbsp;incorrect"</span><br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(** TABLEAUX **)</span></td></tr></table><code class="code"><br>
+<span class="keyword">and</span>&nbsp;generate_array&nbsp;(<span class="constructor">Arguments</span>(_,&nbsp;<span class="constructor">Expressions</span>(_,args)))&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;saved_registers&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;nbrReg()=0&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;1&nbsp;<span class="keyword">else</span>&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;offset&nbsp;=&nbsp;ref&nbsp;4&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+</code><table><tr><td></td><td><span class="comment">(** AJOUT *)</span></td></tr></table><code class="code"><br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;l&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(gc_pourri&nbsp;=&nbsp;1)&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;((topReg&nbsp;())-1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;[]<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;<span class="comment">(*&nbsp;push(reg_address);&nbsp;utile&nbsp;???????&nbsp;*)</span><br>
+</code><table><tr><td></td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;r1&nbsp;=&nbsp;topReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;r2&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Taille&nbsp;de&nbsp;l'objet&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;((<span class="constructor">List</span>.length&nbsp;args)*4&nbsp;+&nbsp;4))&nbsp;<span class="string">"create&nbsp;array"</span>;<br>
+&nbsp;&nbsp;<br>
+</code><table><tr><td></td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(gc_pourri&nbsp;=&nbsp;1)&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Appel&nbsp;au&nbsp;GC&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"((init&nbsp;&gt;&gt;&nbsp;16)&nbsp;&amp;&nbsp;0xffff)"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LSHI"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"16"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"(init&nbsp;&amp;&nbsp;0xffff)&nbsp;+&nbsp;4"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;push(r2);&nbsp;<span class="comment">(*&nbsp;this&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;&nbsp;<span class="comment">(*&nbsp;addresse&nbsp;de&nbsp;la&nbsp;vmt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span>;&nbsp;&nbsp;<span class="comment">(*&nbsp;Adresse&nbsp;de&nbsp;la&nbsp;fonction&nbsp;malloc&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;push(r1);&nbsp;<span class="comment">(*&nbsp;size&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;decFrameSize&nbsp;8;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r_lnk)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;(!addr+8))&nbsp;<span class="string">""</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;saute*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"appel&nbsp;au&nbsp;Gc:&nbsp;malloc()"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;r_return)&nbsp;<span class="string">"ON&nbsp;LOAD&nbsp;LES&nbsp;REg-iSters&nbsp;!&nbsp;*"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;(l);<br>
+&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">else</span><br>
+</code><table><tr><td></td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;r1)&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"12"</span>&nbsp;<span class="string">""</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;give&nbsp;la&nbsp;taille&nbsp;!&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;((<span class="constructor">List</span>.length&nbsp;args)*4))&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;<br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;give&nbsp;les&nbsp;arg&nbsp;!&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;e&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_expression&nbsp;e;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r1)&nbsp;(string_of_int&nbsp;!offset)&nbsp;<span class="string">""</span>;&nbsp;offset&nbsp;:=&nbsp;!offset&nbsp;+&nbsp;4)&nbsp;args;<br>
+&nbsp;&nbsp;dropReg();<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;saved_registers&lt;&gt;[]&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"OR"</span>&nbsp;(reg&nbsp;(r1+1))&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;saved_registers;<br>
+&nbsp;&nbsp;<span class="keyword">end</span><br>
+<br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(** /TABLEAUX **)</span></td></tr></table><code class="code"><br>
+<br>
+<span class="keyword">and</span>&nbsp;generate_new&nbsp;(classe,&nbsp;<span class="constructor">Arguments</span>(_,&nbsp;<span class="constructor">Expressions</span>(_,args)))&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;saved_registers&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;nbrReg()=0&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;1&nbsp;<span class="keyword">else</span>&nbsp;[]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;offset&nbsp;=&nbsp;ref&nbsp;4&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;vmt_addr&nbsp;=&nbsp;<span class="constructor">Ast</span>.get_offset&nbsp;classe.symbol&nbsp;<span class="keyword">in</span><br>
+</code><table><tr><td></td><td><span class="comment">(** AJOUT *)</span></td></tr></table><code class="code"><br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;l&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(gc_pourri&nbsp;=&nbsp;1)&nbsp;<span class="keyword">then</span>&nbsp;save_reg&nbsp;((topReg&nbsp;())-1)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;[]<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;<span class="comment">(*&nbsp;push(reg_address);&nbsp;utile&nbsp;???????&nbsp;*)</span><br>
+</code><table><tr><td></td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;r1&nbsp;=&nbsp;topReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;r2&nbsp;=&nbsp;freshReg&nbsp;()&nbsp;<span class="keyword">in</span><br>
+<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;Taille&nbsp;de&nbsp;l'objet&nbsp;*)</span><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADDI"</span>&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;((<span class="constructor">List</span>.length&nbsp;args)*4&nbsp;+&nbsp;4))&nbsp;<span class="string">"new"</span>;<br>
+&nbsp;&nbsp;<br>
+</code><table><tr><td></td><td><span class="comment">(** GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;(gc_pourri&nbsp;=&nbsp;1)&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*&nbsp;Appel&nbsp;au&nbsp;GC&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"R0"</span>&nbsp;<span class="string">"((init&nbsp;&gt;&gt;&nbsp;16)&nbsp;&amp;&nbsp;0xffff)"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LSHI"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"16"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"(init&nbsp;&amp;&nbsp;0xffff)&nbsp;+&nbsp;4"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;push(r2);&nbsp;<span class="comment">(*&nbsp;this&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;&nbsp;<span class="comment">(*&nbsp;addresse&nbsp;de&nbsp;la&nbsp;vmt&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"LDW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"4"</span>&nbsp;<span class="string">""</span>;&nbsp;&nbsp;<span class="comment">(*&nbsp;Adresse&nbsp;de&nbsp;la&nbsp;fonction&nbsp;malloc&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;push(r1);&nbsp;<span class="comment">(*&nbsp;size&nbsp;*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;decFrameSize&nbsp;8;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r_lnk)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;(!addr+8))&nbsp;<span class="string">""</span>;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">(*on&nbsp;saute*)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_1&nbsp;<span class="string">"RET"</span>&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"appel&nbsp;au&nbsp;Gc:&nbsp;malloc()"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"ADD"</span>&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;r_return)&nbsp;<span class="string">"ON&nbsp;LOAD&nbsp;LES&nbsp;REg-iSters&nbsp;!&nbsp;*"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;(l);<br>
+&nbsp;&nbsp;<span class="keyword">end</span><br>
+&nbsp;&nbsp;<span class="keyword">else</span><br>
+</code><table><tr><td></td><td><span class="comment">(** /GC **)</span></td></tr></table><code class="code"><br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"SYSCALL"</span>&nbsp;(reg&nbsp;r1)&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"12"</span>&nbsp;<span class="string">""</span>;<br>
+<br>
+<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"ORIU"</span>&nbsp;(reg&nbsp;r2)&nbsp;<span class="string">"R0"</span>&nbsp;(string_of_int&nbsp;vmt_addr)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">"0"</span>&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;<span class="comment">(*&nbsp;On&nbsp;give&nbsp;les&nbsp;arg&nbsp;!&nbsp;*)</span><br>
+&nbsp;&nbsp;<span class="constructor">List</span>.iter&nbsp;(<span class="keyword">fun</span>&nbsp;e&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;generate_expression&nbsp;e;&nbsp;print_3&nbsp;<span class="string">"STW"</span>&nbsp;(reg&nbsp;r2)&nbsp;(reg&nbsp;r1)&nbsp;(string_of_int&nbsp;!offset)&nbsp;<span class="string">""</span>;&nbsp;offset&nbsp;:=&nbsp;!offset&nbsp;+&nbsp;4)&nbsp;args;<br>
+&nbsp;&nbsp;dropReg();<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;saved_registers&lt;&gt;[]&nbsp;<span class="keyword">then</span><br>
+&nbsp;&nbsp;<span class="keyword">begin</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;print_3&nbsp;<span class="string">"OR"</span>&nbsp;(reg&nbsp;(r1+1))&nbsp;<span class="string">"R0"</span>&nbsp;(reg&nbsp;r1)&nbsp;<span class="string">""</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;load_reg&nbsp;saved_registers;<br>
+&nbsp;&nbsp;<span class="keyword">end</span><br>
+<br>
+</code><table><tr><td></td><td><span class="comment">(**********  PARTIE EN PLUS  ***********)</span></td></tr></table><code class="code"><br>
+<br>
+<span class="keyword">and</span>&nbsp;main&nbsp;filename&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;in_channel&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;filename&nbsp;=&nbsp;<span class="string">"--"</span>&nbsp;<span class="keyword">then</span>&nbsp;stdin&nbsp;<span class="keyword">else</span>&nbsp;open_in&nbsp;filename&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;chars&nbsp;=&nbsp;<span class="constructor">CharReader</span>.charReader_of_in_channel&nbsp;in_channel&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;scanner&nbsp;=&nbsp;<span class="constructor">Scanner</span>.new_scanner&nbsp;chars&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;tree&nbsp;=&nbsp;<span class="constructor">Parser</span>.parse&nbsp;scanner&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Analyser</span>.analyse_program&nbsp;tree;<br>
+&nbsp;&nbsp;<span class="constructor">Report</span>.exit_on_error();<br>
+&nbsp;&nbsp;generate_program&nbsp;tree;</code></body></html>

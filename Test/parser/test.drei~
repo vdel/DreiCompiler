@@ -1,0 +1,43 @@
+{
+do 42;
+do a;
+do {return 0
+};
+do {return a
+};
+do {var a : Int=42;
+return a
+};
+do new Cons(97, new Cons(98, new Cons(99, new Nil())));
+do 1;
+do 0;
+do this;
+do readInt;
+do readChar;
+do new List(x, xs);
+do xs.head;
+do xs.head.head.head;
+do xs.tail().head.tail().head.tail();
+do this.foo();
+do this.foo(42);
+do this.foo(4, 2);
+do this.foo().bar();
+do new List().head;
+do new Cons(101, new Cons(120, new Cons(112, new Cons(114, new Cons(101, new Cons(115, new Cons(115, new Cons(105, new Cons(111, new Cons(110, new Nil()))))))))
+));
+do (a = b);
+do (a != b);
+do (a < b);
+do (a <= b);
+do (a > b);
+do (a >= b);
+do !(!a && !b);
+do (a && b);
+do !a;
+do -a;
+do (a+b);
+do (a-b);
+do (a * b);
+do (a / b);
+do (a % b);
+}

@@ -1,0 +1,19 @@
+class A {
+}
+
+class B extends A {
+val a : Int;
+val b : A;
+def foo() : Int = 0;
+def foo(x : Int) : Int = 0;
+def foo(x : Int,y : Int,z : Int) : Int = 0;
+def bar() {
+printInt(42);
+}
+def bar(x : Int) {
+printInt(x);
+}
+}
+
+{
+}

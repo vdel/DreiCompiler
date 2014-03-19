@@ -1,0 +1,10 @@
+emulator.cmo: risc.cmo gcmap.cmo codec.cmo 
+emulator.cmx: risc.cmx gcmap.cmx codec.cmx 
+parser.cmo: scanner.cmo risc.cmo 
+parser.cmx: scanner.cmx risc.cmx 
+main.cmo: scanner.cmo parser.cmo fast_emul.cmo emulator.cmo 
+main.cmx: scanner.cmx parser.cmx fast_emul.cmx emulator.cmx 
+codec.cmo: risc.cmo 
+codec.cmx: risc.cmx 
+fast_emul.cmo: risc.cmo gcmap.cmo codec.cmo 
+fast_emul.cmx: risc.cmx gcmap.cmx codec.cmx 

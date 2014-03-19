@@ -1,0 +1,18 @@
+class Factorial {
+  val x:Int;
+  val y:Int;
+
+  def grougrou (x:Int): Int = 
+  {
+    var res : Int = x+this.x;
+    printInt(x);
+    return res
+  };
+
+}
+
+{var x: Int = 5;
+  var fac: Factorial = new Factorial(x+5,2);
+  do (fac.grougrou(x));
+  printChar(10);
+}
